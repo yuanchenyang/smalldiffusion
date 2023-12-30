@@ -1,0 +1,25 @@
+#python specific
+*.pyc
+__pycache__
+.pytest_cache
+.ipynb_checkpoints
+*.egg-info
+
+#emacs specific
+\#*\#
+
+## generic files to ignore
+*~
+*.lock
+*.DS_Store
+*.swp
+*.log
+*.out
+
+# Project specific
+/build/
+/dist/
+/htmlcov/
+/env/
+.venv
+.coverage
