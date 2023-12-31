@@ -33,6 +33,10 @@ classifiers = [
 dependencies = [
   "torch>=2.1.2",
   "numpy>=1.26.2",
+  "accelerate",
+  "datasets",
+  "torchvision",
+  "tqdm",
 ]
 
 [project.urls]
@@ -42,8 +46,8 @@ dependencies = [
 "Source" = "https://github.com/yuanchenyang/smalldiffusion"
 
 [project.optional-dependencies] # Optional
-dev = ["build", "twine"]
-test = ["pytest"]
+dev = ["build", "twine", "jupyter"]
+test = ["pytest", "diffusers"]
 
 [build-system]
 requires = ["setuptools>=62"]
