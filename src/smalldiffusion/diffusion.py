@@ -23,19 +23,20 @@ class Schedule:
         return len(self._sigmas)
 
     def sample_sigmas(self, steps: int) -> torch.FloatTensor:
-        '''Called during sampling to get a decreasing sigma schedule
-        - Spacing is "trailing" as in Table 2 of https://arxiv.org/abs/2305.08891
-        - Includes initial and final sigmas
-          i.e. len(schedule.sample_sigmas(steps)) == steps + 1
+        '''Called during sampling to get a decreasing sigma schedule with a
+        specified number of sampling steps:
+          - Spacing is "trailing" as in Table 2 of https://arxiv.org/abs/2305.08891
+          - Includes initial and final sigmas
+            i.e. len(schedule.sample_sigmas(steps)) == steps + 1
         '''
-        start_indices = list((len(self) * (1 - np.arange(0, steps)/steps)).round()
-                             .astype(np.int64) - 1)
+        start_indices = list((len(self) * (1 - np.arange(0, steps)/steps))
+                             .round().astype(np.int64) - 1)
         return self[start_indices + [0]]
 
-    def sample_batch(self, batchsize: int,
-                     generator: torch.Generator=None) -> torch.FloatTensor:
-        '''Called during training to get a batch of randomly sampled sigma values'''
-        return self[torch.randint(len(self), (batchsize,), generator=generator)]
+    def sample_batch(self, batchsize: int) -> torch.FloatTensor:
+        '''Called during training to get a batch of randomly sampled sigma values
+        '''
+        return self[torch.randint(len(self), (batchsize,))]
 
 class ScheduleLogLinear(Schedule):
     def __init__(self, N, sigma_min=0.02, sigma_max=10):
@@ -55,14 +56,14 @@ class ScheduleLDM(Schedule):
         super().__init__(N)
         self.sigmas_from_betas(torch.linspace(beta_start**0.5, beta_end**0.5, N)**2)
 
-def generate_train_sample(x0, schedule, device, generator=None):
-    sigma = schedule.sample_batch(x0.shape[0], generator=generator)
+def generate_train_sample(x0, schedule, device):
+    sigma = schedule.sample_batch(x0.shape[0])
     while len(sigma.shape) < len(x0.shape):
         sigma = sigma.unsqueeze(-1)
     eps = torch.randn(x0.shape)
     return x0.to(device), sigma.to(device), eps.to(device)
 
-def training_loop(data, model, schedule, accelerator=None, epochs=10000, lr=1e-3):
+def training_loop(data, model, schedule, epochs=10000, lr=1e-3, accelerator=None):
     accelerator = accelerator or Accelerator()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     model, optimizer, data = accelerator.prepare(model, optimizer, data)

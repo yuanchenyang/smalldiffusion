@@ -46,7 +46,7 @@ dependencies = [
 "Source" = "https://github.com/yuanchenyang/smalldiffusion"
 
 [project.optional-dependencies] # Optional
-dev = ["build", "twine", "jupyter"]
+dev = ["build", "twine", "jupyter", "matplotlib"]
 test = ["pytest", "diffusers"]
 
 [build-system]

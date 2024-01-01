@@ -1,7 +1,9 @@
 import unittest
+import numpy as np
+from torch.utils.data import DataLoader, RandomSampler
+from diffusers import DDIMScheduler
 
 from smalldiffusion import *
-from diffusers import DDIMScheduler
 
 def get_hf_sigmas(scheduler):
     return (1/scheduler.alphas_cumprod - 1).sqrt()
@@ -50,5 +52,31 @@ class TestSchedule(unittest.TestCase):
                     # implementation, only compare when steps are divisible
                     self.assertEqualTensors(sig_hf, sig_sd[:-1])
 
-if __name__ == '__main__':
-    unittest.main()
+class TestPipeline(unittest.TestCase):
+    def setUp(self):
+        self.params = [
+            (100, 2048, 3, 19),
+            (10, 100, 42, 7),
+        ]
+
+    def test_swissroll(self):
+        for npoints, B, epochs, sample_steps in self.params:
+            dataset = Swissroll(np.pi/2, 5*np.pi, npoints)
+            loader = DataLoader(dataset, sampler=RandomSampler(dataset, num_samples=B), batch_size=B)
+
+            # Test loader
+            batch = next(iter(loader))
+            self.assertEqual(batch.shape, (B, 2))
+            self.assertEqual(len(set((x, y) for x, y in batch.numpy())), npoints)
+
+            schedule = ScheduleLogLinear(N=200, sigma_min=0.01, sigma_max=10)
+            model = TimeInputMLP(hidden_dims=(16,128,256,128,16))
+            trainer = training_loop(loader, model, schedule, epochs=epochs, lr=1e-3)
+
+            # Mainly to test that model trains without erroe
+            losses = [ns['loss'].item() for ns in trainer]
+            self.assertEqual(len(losses), epochs)
+
+            # Test sampling
+            *_, sample = samples(model, schedule.sample_sigmas(sample_steps), gam=1, batchsize=B//2)
+            self.assertEqual(sample.shape, (B//2, 2))
