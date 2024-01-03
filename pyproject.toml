@@ -37,6 +37,7 @@ dependencies = [
   "datasets",
   "torchvision",
   "tqdm",
+  "ema_pytorch",
 ]
 
 [project.urls]

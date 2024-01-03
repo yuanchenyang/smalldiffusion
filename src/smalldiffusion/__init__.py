@@ -7,6 +7,6 @@ from .data import (
     Swissroll, DatasaurusDozen, get_hf_dataloader
 )
 
-from .model_mlp import (
-    TimeInputMLP
+from .model import (
+    TimeInputMLP, ModelMixin
 )

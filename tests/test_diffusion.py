@@ -2,14 +2,14 @@ import unittest
 import torch
 import numpy as np
 from torch.utils.data import DataLoader, RandomSampler
-from diffusers import DDIMScheduler
+from diffusers import DDIMScheduler, DDPMScheduler
 
 from smalldiffusion import *
 
 def get_hf_sigmas(scheduler):
     return (1/scheduler.alphas_cumprod - 1).sqrt()
 
-class DummyModel:
+class DummyModel(ModelMixin):
     def __init__(self, dims):
         self.input_dims = dims
 
@@ -19,10 +19,12 @@ class DummyModel:
 
 class TensorTest:
     def assertEqualTensors(self, t1, t2):
-        self.assertEqual(sum(t1 - t2).item(), 0.0)
+        error = sum(t1 - t2).item()
+        self.assertEqual(error, 0.0, f'{error} != 0!')
 
     def assertAlmostEqualTensors(self, t1, t2, tol=1e-6):
-        self.assertTrue((t1-t2).square().mean().item() < tol)
+        mse = (t1-t2).square().mean().item()
+        self.assertTrue(mse < tol, f'{mse} > {tol}!')
 
 class TestSchedule(unittest.TestCase, TensorTest):
     def setUp(self):
@@ -70,6 +72,7 @@ class TestSampler(unittest.TestCase, TensorTest):
         self.dims = (2,10,40)
         self.N_train = 1000
         self.ntrials = 5
+        self.nevals = (10,20,50)
         self.sc_sd = ScheduleDDPM(self.N_train)
         self.model = DummyModel(self.dims)
 
@@ -81,7 +84,7 @@ class TestSampler(unittest.TestCase, TensorTest):
             set_alpha_to_one=False,
         )
         for _ in range(self.ntrials):
-            for N in (10,20,50):
+            for N in self.nevals:
                 # Same initial noise
                 xt = torch.randn(self.dims)
 
@@ -96,8 +99,33 @@ class TestSampler(unittest.TestCase, TensorTest):
                     x = sc_hf.step(self.model(x, self.sc_sd[t]), t, x).prev_sample
                 x0_hf = x
 
-                print((x0_sd-x0_hf).square().mean().item())
                 self.assertAlmostEqualTensors(x0_sd, x0_hf, tol=1e-4)
+
+    def test_DDPM_equivalence(self):
+        sc_hf = DDPMScheduler(
+            num_train_timesteps=self.N_train,
+            timestep_spacing='trailing',
+            clip_sample=False,
+        )
+        for seed in range(self.ntrials):
+            for N in self.nevals:
+                # Same initial noise
+                xt = torch.randn(self.dims)
+
+                # Sample with smalldiffusion in DDPM mode
+                sigmas = self.sc_sd.sample_sigmas(N)
+                torch.manual_seed(seed)
+                *_, x0_sd = samples(self.model, sigmas, gam=1, xt=xt*sigmas[0], mu=0.5)
+
+                # Sample with DDPM scheduler from diffusers library
+                sc_hf.set_timesteps(N)
+                torch.manual_seed(seed)
+                x = xt
+                for t in sc_hf.timesteps:
+                    x = sc_hf.step(self.model(x, self.sc_sd[t]), t, x).prev_sample
+                x0_hf = x
+
+                self.assertAlmostEqualTensors(x0_sd, x0_hf, tol=1e-3)
 
 class TestPipeline(unittest.TestCase):
     def setUp(self):

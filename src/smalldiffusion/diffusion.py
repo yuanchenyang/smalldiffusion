@@ -1,5 +1,6 @@
 import math
 from itertools import pairwise
+from ema_pytorch import EMA
 
 import torch
 import numpy as np
@@ -74,16 +75,23 @@ def training_loop(data, model, schedule, epochs=10000, lr=1e-3, accelerator=None
             eps_hat = model(x0 + sigma * eps, sigma)
             loss = nn.MSELoss()(eps_hat, eps)
             yield locals() # For extracting training statistics
+            if type(model) == EMA:
+                model.update()
             accelerator.backward(loss)
             optimizer.step()
 
 @torch.no_grad()
-def samples(model, sigmas, batchsize=2048, gam=1, device='cpu', xt=None):
+def samples(model, sigmas, batchsize=1, gam=1, device='cpu', xt=None, mu=0.):
     if xt is None:
-        xt = torch.randn((batchsize,) + model.input_dims).to(device) * sigmas[0]
+        xt = model.rand_input(batchsize, device) * sigmas[0]
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
         eps, eps_prev = model(xt, sig.to(device)), eps
-        eps_av = eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
-        xt = xt - (sig - sig_prev) * eps_av
+        eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
+        if 0 < mu <= 1:
+            sig_p = (sig_prev/sig**(1-mu))**(1/mu) # sig_prev == sig**(1-mu) sig_p**mu
+            eta = (sig_prev**2 - sig_p**2).sqrt()
+            xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(batchsize, device)
+        else:
+            xt = xt - (sig - sig_prev) * eps_av
         yield xt
