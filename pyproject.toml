@@ -31,8 +31,8 @@ classifiers = [
 ]
 
 dependencies = [
-  "torch>=2.1.2",
-  "numpy>=1.26.2",
+  "torch",
+  "numpy",
   "accelerate",
   "datasets",
   "torchvision",
@@ -47,7 +47,7 @@ dependencies = [
 
 [project.optional-dependencies] # Optional
 dev = ["build", "twine", "jupyter", "matplotlib"]
-test = ["pytest", "diffusers"]
+test = ["pytest", "diffusers==0.25.0"]
 
 [build-system]
 requires = ["setuptools>=62"]
