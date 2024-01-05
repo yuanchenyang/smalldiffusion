@@ -1,6 +1,5 @@
 import math
 from itertools import pairwise
-from ema_pytorch import EMA
 
 import torch
 import numpy as np
@@ -45,38 +44,36 @@ class ScheduleLogLinear(Schedule):
         self._sigmas = torch.logspace(math.log10(sigma_min), math.log10(sigma_max), N)
 
 class ScheduleDDPM(Schedule):
-    def __init__(self, N, beta_start: float=0.0001, beta_end: float=0.02):
+    def __init__(self, N=1000, beta_start: float=0.0001, beta_end: float=0.02):
         '''Default parameters recover schedule used in most diffusion models'''
         super().__init__(N)
         self.sigmas_from_betas(torch.linspace(beta_start, beta_end, N))
 
 class ScheduleLDM(Schedule):
-    def __init__(self, N, beta_start: float=0.0001, beta_end: float=0.02):
+    def __init__(self, N=1000, beta_start: float=0.00085, beta_end: float=0.012):
         '''Default parameters recover schedule used in most latent diffusion
         models, e.g. Stable diffusion'''
         super().__init__(N)
         self.sigmas_from_betas(torch.linspace(beta_start**0.5, beta_end**0.5, N)**2)
 
-def generate_train_sample(x0, schedule, device):
-    sigma = schedule.sample_batch(x0.shape[0])
+def generate_train_sample(x0, schedule):
+    sigma = schedule.sample_batch(x0.shape[0]).to(x0)
     while len(sigma.shape) < len(x0.shape):
         sigma = sigma.unsqueeze(-1)
-    eps = torch.randn(x0.shape)
-    return x0.to(device), sigma.to(device), eps.to(device)
+    eps = torch.randn(x0.shape).to(x0)
+    return sigma, eps
 
 def training_loop(data, model, schedule, epochs=10000, lr=1e-3, accelerator=None):
     accelerator = accelerator or Accelerator()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     model, optimizer, data = accelerator.prepare(model, optimizer, data)
-    for _ in tqdm(range(epochs)):
+    for _ in (pbar := tqdm(range(epochs))):
         for x0 in iter(data):
             optimizer.zero_grad()
-            x0, sigma, eps = generate_train_sample(x0, schedule, accelerator.device)
+            sigma, eps = generate_train_sample(x0, schedule)
             eps_hat = model(x0 + sigma * eps, sigma)
             loss = nn.MSELoss()(eps_hat, eps)
             yield locals() # For extracting training statistics
-            if type(model) == EMA:
-                model.update()
             accelerator.backward(loss)
             optimizer.step()
 

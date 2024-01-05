@@ -52,6 +52,13 @@ class TestSchedule(unittest.TestCase, TensorTest):
                 ScheduleLDM(N, beta_start=beta_start, beta_end=beta_end)
             )
 
+    def test_LDMScheduler_default(self):
+        self.compare_scheduler_sigmas(
+            DDIMScheduler.from_pretrained('stabilityai/stable-diffusion-2',
+                                          subfolder='scheduler'),
+            ScheduleLDM(),
+        )
+
     def test_sample_sigma(self):
         for N, beta_start, beta_end in self.params:
             sc_hf = DDIMScheduler(num_train_timesteps=N, timestep_spacing='trailing',
