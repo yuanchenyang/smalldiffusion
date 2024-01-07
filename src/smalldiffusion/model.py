@@ -4,8 +4,12 @@ from itertools import pairwise
 
 def get_sigma_embeds(batches, sigma):
     if sigma.shape == torch.Size([]):
-        sigma = sigma.unsqueeze(0).repeat(batches).unsqueeze(1)
-    return torch.cat([torch.sin(torch.log(sigma)/2), torch.cos(torch.log(sigma)/2)], dim=1)
+        sigma = sigma.unsqueeze(0).repeat(batches)
+    else:
+        assert sigma.shape == (batches,), 'sigma.shape == [] or [batches]!'
+    sigma = sigma.unsqueeze(1)
+    return torch.cat([torch.sin(torch.log(sigma)/2),
+                      torch.cos(torch.log(sigma)/2)], dim=1)
 
 class ModelMixin:
     def rand_input(self, batchsize, device):
@@ -26,6 +30,6 @@ class TimeInputMLP(nn.Module, ModelMixin):
     def forward(self, x, sigma):
         # x     shape: b x dim
         # sigma shape: b x 1 or scalar
-        sigma_embeds = get_sigma_embeds(x.shape[0], sigma) # shape: b x 2
-        nn_input = torch.cat([x, sigma_embeds], dim=1)     # shape: b x (dim + 2)
+        sigma_embeds = get_sigma_embeds(x.shape[0], sigma.squeeze()) # shape: b x 2
+        nn_input = torch.cat([x, sigma_embeds], dim=1)               # shape: b x (dim + 2)
         return self.net(nn_input)
