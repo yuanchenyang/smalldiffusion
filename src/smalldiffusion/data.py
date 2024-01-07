@@ -16,7 +16,8 @@ class Swissroll(Dataset):
         return self.vals[i]
 
 class DatasaurusDozen(Dataset):
-    def __init__(self, csv_file, dataset, delimiter='\t', scale=50, offset=50):
+    def __init__(self, csv_file, dataset, enlarge_factor=15, delimiter='\t', scale=50, offset=50):
+        self.enlarge_factor = enlarge_factor
         self.points = []
         with open(csv_file, newline='') as f:
             for name, *rest in csv.reader(f, delimiter=delimiter):
@@ -25,10 +26,10 @@ class DatasaurusDozen(Dataset):
                     self.points.append((point - offset) / scale)
 
     def __len__(self):
-        return len(self.points)
+        return len(self.points) * self.enlarge_factor
 
     def __getitem__(self, i):
-        return self.points[i]
+        return self.points[i % len(self.points)]
 
 class ColSelectDataloader:
     def __init__(self, loader, col_name):
