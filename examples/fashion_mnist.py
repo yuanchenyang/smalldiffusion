@@ -3,7 +3,6 @@ from tqdm import tqdm
 from accelerate import Accelerator
 
 from smalldiffusion import ScheduleLogLinear, samples, training_loop, get_hf_dataloader
-from utils import Saver, last
 from models.unet import Unet
 
 from torch_ema import ExponentialMovingAverage as EMA
@@ -25,11 +24,7 @@ ema.to(accelerator.device)
 for ns in trainer:
     ema.update()
 
-# Eval
-N_img, batch_size, steps = 10000, 1000, 10
+# Sample
 with ema.average_parameters():
-    with Saver('output/fid_imgs', target='output/fid_fashionmnist_train.npz') as s:
-        for _ in tqdm(range(N_img // batch_size)):
-            s.save(last(samples(model, schedule.sample_sigmas(steps),
-                                batchsize=batch_size, device=accelerator.device)))
+    *xt, x0 = samples(model, schedule.sample_sigmas(steps), batchsize=100, device=accelerator.device)
     torch.save(model.state_dict(), 'checkpoint.pth')
