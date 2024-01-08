@@ -15,7 +15,7 @@ class DummyModel(ModelMixin):
 
     def __call__(self, x, sigma):
         gen = torch.Generator().manual_seed(int(sigma * 100000))
-        return torch.randn(self.input_dims, generator=gen)
+        return torch.randn((x.shape[0],) + self.input_dims, generator=gen)
 
 class TensorTest:
     def assertEqualTensors(self, t1, t2):
@@ -80,8 +80,10 @@ class TestSampler(unittest.TestCase, TensorTest):
         self.N_train = 1000
         self.ntrials = 5
         self.nevals = (10,20,50)
+        self.batches = 3
         self.sc_sd = ScheduleDDPM(self.N_train)
         self.model = DummyModel(self.dims)
+        self.device = 'cpu'
 
     def test_DDIM_equivalence(self):
         sc_hf = DDIMScheduler(
@@ -93,7 +95,7 @@ class TestSampler(unittest.TestCase, TensorTest):
         for _ in range(self.ntrials):
             for N in self.nevals:
                 # Same initial noise
-                xt = torch.randn(self.dims)
+                xt = self.model.rand_input(self.batches, self.device)
 
                 # Sample with smalldiffusion in DDIM mode
                 sigmas = self.sc_sd.sample_sigmas(N)
@@ -117,7 +119,7 @@ class TestSampler(unittest.TestCase, TensorTest):
         for seed in range(self.ntrials):
             for N in self.nevals:
                 # Same initial noise
-                xt = torch.randn(self.dims)
+                xt = self.model.rand_input(self.batches, self.device)
 
                 # Sample with smalldiffusion in DDPM mode
                 sigmas = self.sc_sd.sample_sigmas(N)

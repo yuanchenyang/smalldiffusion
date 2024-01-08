@@ -86,17 +86,19 @@ def training_loop(data, model, schedule, accelerator=None, epochs=10000, lr=1e-3
 @torch.no_grad()
 def samples(model, sigmas, xt=None, batchsize=1, gam=1., mu=0., device='cpu'):
     # sigmas: Iterable with N+1 values [sigma_N, ..., sigma_0] for N sampling steps
+    # Need gam >= 1 and mu in [0, 1)
     # For DDPM   : gam=1, mu=0.5
     # For DDIM   : gam=1, mu=0
     # Accelerated: gam=2, mu=0
     if xt is None:
         xt = model.rand_input(batchsize, device) * sigmas[0]
+    else:
+        batchsize = xt.shape[0]
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
         eps, eps_prev = model(xt, sig.to(device)), eps
         eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
-        # We want sig_prev == sig**(1-mu) sig_p**mu
-        sig_p = sig_prev if mu == 0 else (sig_prev/sig**(1-mu))**(1/mu)
+        sig_p = (sig_prev/sig**mu)**(1/(1-mu)) # sig_prev == sig**mu sig_p**(1-mu)
         eta = (sig_prev**2 - sig_p**2).sqrt()
         xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(batchsize, device)
         yield xt
