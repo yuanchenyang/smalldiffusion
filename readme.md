@@ -38,11 +38,12 @@ $ accelerate launch examples/fashion_mnist.py
 
 With the default parameters, the model can achieve a [FID
 score](https://paperswithcode.com/sota/image-generation-on-fashion-mnist) of
-around 12-13.
+around 12-13, producing the following generated outputs:
+<p align="center">
+<img src="/imgs/fashion-mnist-samples.png" width=50%>
+</p>
 
-![FashionMNIST Samples](/imgs/fashion-mnist-samples.png)
-
-### Stable diffusion
+### StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
 DDPM, DDIM as well as accelerated sampling algorithms. In
 [examples/stablediffusion.ipynb](/examples/stablediffusion.ipynb), we provide a
