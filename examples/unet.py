@@ -1,4 +1,4 @@
-# Adapted from unet implementation by lucidrains
+# Adapted and simplified from U-Net implementation by lucidrains
 # https://github.com/lucidrains/denoising-diffusion-pytorch
 
 import math
