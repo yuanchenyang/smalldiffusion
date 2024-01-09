@@ -50,7 +50,7 @@ test = ["pytest", "diffusers==0.25.0"]
 examples = [
   "einops",
   "diffusers==0.25.0",
-  "transformers"
+  "transformers",
   "datasets",
   "jupyter",
   "matplotlib",
