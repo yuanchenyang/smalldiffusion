@@ -59,6 +59,7 @@ schedule = ScheduleLDM(1000)
 model    = ModelLatentDiffusion('stabilityai/stable-diffusion-2-1-base')
 model.set_text_condition('An astronaut riding a horse')
 *xts, x0 = samples(model, schedule.sample_sigmas(50))
+decoded  = model.decode_latents(x0)
 ```
 
 # How to use

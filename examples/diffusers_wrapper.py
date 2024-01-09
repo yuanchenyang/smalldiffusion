@@ -19,7 +19,7 @@ class ModelLatentDiffusion(nn.Module, ModelMixin):
         self.text_encoder = CLIPTextModel.from_pretrained(model_key, subfolder="text_encoder")
         self.unet = UNet2DConditionModel.from_pretrained(model_key, subfolder="unet")
         self.scheduler = DDIMScheduler.from_pretrained(model_key, subfolder="scheduler")
-        self.input_dims = self.unet.input_dims
+        self.input_dims = (self.unet.in_channels, self.unet.sample_size, self.unet.sample_size,)
         self.text_condition = None
         self.text_guidance_scale = None
         if is_xformers_available():
