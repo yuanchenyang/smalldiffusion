@@ -1,4 +1,4 @@
-from accelerate import Accelerator
+import torch
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler
 from diffusers.utils.import_utils import is_xformers_available
 from transformers import CLIPTextModel, CLIPTokenizer
@@ -10,9 +10,9 @@ def alpha_bar(sigma):
     return 1/(sigma**2+1)
 
 class ModelLatentDiffusion(nn.Module, ModelMixin):
-    def __init__(self, model_key, accelerator=None):
+    def __init__(self, model_key, device='cuda'):
         super().__init__()
-        self.accelerator = accelerator or Accelerator()
+        self.device = device
         self.vae = AutoencoderKL.from_pretrained(model_key, subfolder="vae")
         self.tokenizer = CLIPTokenizer.from_pretrained(model_key, subfolder="tokenizer")
         self.text_encoder = CLIPTextModel.from_pretrained(model_key, subfolder="text_encoder")
@@ -23,13 +23,13 @@ class ModelLatentDiffusion(nn.Module, ModelMixin):
         self.text_guidance_scale = None
         if is_xformers_available():
             self.unet.enable_xformers_memory_efficient_attention()
-        self.to(self.accelerator.device)
+        self.to(device)
 
     def tokenize(self, prompt):
         return self.tokenizer(
             prompt, padding='max_length', max_length=self.tokenizer.model_max_length,
             truncation=True, return_tensors='pt'
-        ).input_ids.to(self.accelerator.device)
+        ).input_ids.to(self.device)
 
     def set_text_condition(self, prompt, negative_prompt='', text_guidance_scale=7.5):
         with torch.no_grad():
