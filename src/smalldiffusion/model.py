@@ -12,9 +12,9 @@ def get_sigma_embeds(batches, sigma):
                       torch.cos(torch.log(sigma)/2)], dim=1)
 
 class ModelMixin:
-    def rand_input(self, batchsize, device):
+    def rand_input(self, batchsize):
         assert hasattr(self, 'input_dims'), 'Model must have "input_dims" attribute!'
-        return torch.randn((batchsize,) + self.input_dims).to(device)
+        return torch.randn((batchsize,) + self.input_dims)
 
 class TimeInputMLP(nn.Module, ModelMixin):
     def __init__(self, dim=2, hidden_dims=(16,128,256,128,16)):

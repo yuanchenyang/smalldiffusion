@@ -10,4 +10,4 @@ upload:
 	python -m twine upload --repository pypi dist/*
 
 install-local:
-	python -m pip install -e .[dev,test]
+	python -m pip install -e .[dev,test,examples]

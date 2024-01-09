@@ -1,8 +1,6 @@
 import torch
 import csv
-from torch.utils.data import Dataset, DataLoader
-from datasets import load_dataset
-from torchvision import transforms
+from torch.utils.data import Dataset
 
 class Swissroll(Dataset):
     def __init__(self, tmin, tmax, N):
@@ -31,29 +29,12 @@ class DatasaurusDozen(Dataset):
     def __getitem__(self, i):
         return self.points[i % len(self.points)]
 
-class ColSelectDataloader:
-    def __init__(self, loader, col_name):
-        self.loader = loader
-        self.col_name = col_name
-        self._iter_loader = None
-    def __iter__(self):
-        self._iter_loader = iter(self.loader)
-        return self
-    def __next__(self):
-        return next(self._iter_loader)[self.col_name]
-
-def get_hf_dataloader(dataset_name='fashion_mnist', split='train', batch_size=128, train_transforms=[]):
-    augs = transforms.Compose(train_transforms + [
-        transforms.ToTensor(),
-        transforms.Lambda(lambda t: (t * 2) - 1)
-    ])
-
-    def transform(examples):
-        examples['pixel_values'] = [augs(image.convert('L')) for image in examples['image']]
-        del examples['image']
-        return examples
-
-    dataset = load_dataset(dataset_name, split=split)
-    transformed_dataset = dataset.with_transform(transform)
-    loader = DataLoader(transformed_dataset, batch_size=batch_size, shuffle=True)
-    return ColSelectDataloader(loader, 'pixel_values')
+# Mainly used to discard labels and only output data
+class MappedDataset(Dataset):
+    def __init__(self, dataset, fn):
+        self.dataset = dataset
+        self.fn = fn
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, i):
+        return self.fn(self.dataset[i])

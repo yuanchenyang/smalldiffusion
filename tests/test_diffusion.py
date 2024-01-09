@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from torch.utils.data import DataLoader, RandomSampler
 from diffusers import DDIMScheduler, DDPMScheduler
+from accelerate import Accelerator
 
 from smalldiffusion import *
 
@@ -83,7 +84,6 @@ class TestSampler(unittest.TestCase, TensorTest):
         self.batches = 3
         self.sc_sd = ScheduleDDPM(self.N_train)
         self.model = DummyModel(self.dims)
-        self.device = 'cpu'
 
     def test_DDIM_equivalence(self):
         sc_hf = DDIMScheduler(
@@ -95,7 +95,7 @@ class TestSampler(unittest.TestCase, TensorTest):
         for _ in range(self.ntrials):
             for N in self.nevals:
                 # Same initial noise
-                xt = self.model.rand_input(self.batches, self.device)
+                xt = self.model.rand_input(self.batches)
 
                 # Sample with smalldiffusion in DDIM mode
                 sigmas = self.sc_sd.sample_sigmas(N)
@@ -119,7 +119,7 @@ class TestSampler(unittest.TestCase, TensorTest):
         for seed in range(self.ntrials):
             for N in self.nevals:
                 # Same initial noise
-                xt = self.model.rand_input(self.batches, self.device)
+                xt = self.model.rand_input(self.batches)
 
                 # Sample with smalldiffusion in DDPM mode
                 sigmas = self.sc_sd.sample_sigmas(N)
@@ -145,6 +145,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_swissroll(self):
         for npoints, B, epochs, sample_steps in self.params:
+            accelerator = Accelerator()
             dataset = Swissroll(np.pi/2, 5*np.pi, npoints)
             loader = DataLoader(dataset, sampler=RandomSampler(dataset, num_samples=B), batch_size=B)
 
@@ -155,12 +156,14 @@ class TestPipeline(unittest.TestCase):
 
             schedule = ScheduleLogLinear(N=200, sigma_min=0.01, sigma_max=10)
             model = TimeInputMLP(hidden_dims=(16,128,256,128,16))
-            trainer = training_loop(loader, model, schedule, epochs=epochs, lr=1e-3)
+            trainer = training_loop(loader, model, schedule, epochs=epochs, lr=1e-3,
+                                    accelerator=accelerator)
 
             # Mainly to test that model trains without erroe
-            losses = [ns['loss'].item() for ns in trainer]
+            losses = [ns.loss.item() for ns in trainer]
             self.assertEqual(len(losses), epochs)
 
             # Test sampling
-            *_, sample = samples(model, schedule.sample_sigmas(sample_steps), gam=1, batchsize=B//2)
+            *_, sample = samples(model, schedule.sample_sigmas(sample_steps), gam=1, batchsize=B//2,
+                                 accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))

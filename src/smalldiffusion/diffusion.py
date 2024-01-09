@@ -7,6 +7,7 @@ from accelerate import Accelerator
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from types import SimpleNamespace
 
 class Schedule:
     '''Diffusion noise schedules parameterized by sigma'''
@@ -69,36 +70,37 @@ def generate_train_sample(x0: torch.FloatTensor, schedule):
 #   Otherwise, x0[i] will be paired with sigma[i] when calling model
 # Have a `rand_input` method for generating random xt during sampling
 
-def training_loop(data, model, schedule, accelerator=None, epochs=10000, lr=1e-3):
+def training_loop(loader, model, schedule, accelerator=None, epochs=10000, lr=1e-3):
     accelerator = accelerator or Accelerator()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    model, optimizer, data = accelerator.prepare(model, optimizer, data)
+    model, optimizer, loader = accelerator.prepare(model, optimizer, loader)
     for _ in (pbar := tqdm(range(epochs))):
-        for x0 in iter(data):
+        for x0 in loader:
             optimizer.zero_grad()
             sigma, eps = generate_train_sample(x0, schedule)
             eps_hat = model(x0 + sigma * eps, sigma)
             loss = nn.MSELoss()(eps_hat, eps)
-            yield locals() # For extracting training statistics
+            yield SimpleNamespace(**locals()) # For extracting training statistics
             accelerator.backward(loss)
             optimizer.step()
 
 @torch.no_grad()
-def samples(model, sigmas, xt=None, batchsize=1, gam=1., mu=0., device='cpu'):
+def samples(model, sigmas, gam=1., mu=0., xt=None, batchsize=1, accelerator=None):
     # sigmas: Iterable with N+1 values [sigma_N, ..., sigma_0] for N sampling steps
     # Need gam >= 1 and mu in [0, 1)
     # For DDPM   : gam=1, mu=0.5
     # For DDIM   : gam=1, mu=0
     # Accelerated: gam=2, mu=0
+    accelerator = accelerator or Accelerator()
     if xt is None:
-        xt = model.rand_input(batchsize, device) * sigmas[0]
+        xt = model.rand_input(batchsize).to(accelerator.device) * sigmas[0]
     else:
         batchsize = xt.shape[0]
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
-        eps, eps_prev = model(xt, sig.to(device)), eps
+        eps, eps_prev = model(xt, sig.to(xt)), eps
         eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
         sig_p = (sig_prev/sig**mu)**(1/(1-mu)) # sig_prev == sig**mu sig_p**(1-mu)
         eta = (sig_prev**2 - sig_p**2).sqrt()
-        xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(batchsize, device)
+        xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(batchsize).to(xt)
         yield xt

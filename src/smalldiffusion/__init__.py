@@ -4,9 +4,9 @@ from .diffusion import (
 )
 
 from .data import (
-    Swissroll, DatasaurusDozen, get_hf_dataloader
+    Swissroll, DatasaurusDozen, MappedDataset
 )
 
 from .model import (
-    TimeInputMLP, ModelMixin
+    TimeInputMLP, ModelMixin, get_sigma_embeds
 )
