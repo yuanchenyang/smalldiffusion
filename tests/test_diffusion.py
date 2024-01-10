@@ -36,7 +36,7 @@ class TestSchedule(unittest.TestCase, TensorTest):
         ]
 
     def compare_scheduler_sigmas(self, sch_hf, sch_sd):
-        self.assertEqualTensors(get_hf_sigmas(sch_hf), sch_sd._sigmas)
+        self.assertEqualTensors(get_hf_sigmas(sch_hf), sch_sd.sigmas)
 
     def test_DDPMScheduler(self):
         for N, beta_start, beta_end in self.params:

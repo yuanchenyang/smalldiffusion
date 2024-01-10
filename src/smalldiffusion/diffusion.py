@@ -13,13 +13,13 @@ from typing import Optional
 class Schedule:
     '''Diffusion noise schedules parameterized by sigma'''
     def __init__(self, sigmas: torch.FloatTensor):
-        self._sigmas = sigmas
+        self.sigmas = sigmas
 
     def __getitem__(self, i) -> torch.FloatTensor:
-        return self._sigmas[i]
+        return self.sigmas[i]
 
     def __len__(self) -> int:
-        return len(self._sigmas)
+        return len(self.sigmas)
 
     def sample_sigmas(self, steps: int) -> torch.FloatTensor:
         '''Called during sampling to get a decreasing sigma schedule with a
@@ -66,10 +66,10 @@ def generate_train_sample(x0: torch.FloatTensor, schedule: Schedule):
     return sigma, eps
 
 # Model objects
-# Always called with (x0, sigma):
-#   If x0.shape == [B, D1, ..., Dk], sigma.shape == [] or [B, 1, ..., 1].
+# Always called with (x, sigma):
+#   If x.shape == [B, D1, ..., Dk], sigma.shape == [] or [B, 1, ..., 1].
 #   If sigma.shape == [], model will be called with the same sigma for each x0
-#   Otherwise, x0[i] will be paired with sigma[i] when calling model
+#   Otherwise, x[i] will be paired with sigma[i] when calling model
 # Have a `rand_input` method for generating random xt during sampling
 
 def training_loop(loader     : DataLoader,
