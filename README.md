@@ -3,9 +3,9 @@
 A lightweight diffusion library for training and sampling from diffusion
 models. It is built for easy experimentation when training new models and
 developing new samplers, supporting minimal toy models to state-of-the-art
-pretrained models. The [core of this library](/src/smalldiffusion/diffusion.py)
-for diffusion training and sampling is implemented in less than 100 lines of
-very readable pytorch code. To install:
+pretrained models. The [core of this library][diffusion-py] for diffusion
+training and sampling is implemented in less than 100 lines of very readable
+pytorch code. To install from [pypi](https://pypi.org/project/smalldiffusion/)::
 
 ```
 pip install smalldiffusion
@@ -30,7 +30,7 @@ losses   = [ns.loss.item() for ns in trainer]
 ```
 
 ### U-Net models
-The same code can be used to train [U-Net-based models](/examples/unet.py). To
+The same code can be used to train [U-Net-based models][unet-py]. To
 train a model on the FashionMNIST dataset and generate a batch of samples (after
 first running `accelerate config`):
 
@@ -44,13 +44,13 @@ score](https://paperswithcode.com/sota/image-generation-on-fashion-mnist) of
 around 12-13, producing the following generated outputs:
 
 <p align="center">
-  <img src="/imgs/fashion-mnist-samples.png" width=50%>
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/fashion-mnist-samples.png" width=50%>
 </p>
 
 ### StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
 DDPM, DDIM as well as accelerated sampling algorithms. In
-[examples/diffusers_wrapper.py](/examples/diffusers_wrapper.py), we provide a
+[examples/diffusers_wrapper.py][diffusers-wrapper], we provide a
 simple wrapper for any pretrained [huggingface
 diffusers](https://github.com/huggingface/diffusers) latent diffusion model,
 enabling sampling from pretrained models with only a few lines of code
@@ -68,7 +68,7 @@ decoded  = model.decode_latents(x0)
 
 It is easy to experiment with different sampler parameters and sampling
 schedules, as demonstrated in
-[examples/stablediffusion.py](/examples/stablediffusion.py).
+[examples/stablediffusion.py][stablediffusion].
 
 
 # How to use
@@ -122,7 +122,7 @@ Three schedules are provided:
 
 The following plot shows these three schedules with default parameters.
 <p align="center">
-  <img src="/imgs/schedule.png" width=40%>
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/schedule.png" width=40%>
 </p>
 
 ### Training
@@ -153,3 +153,9 @@ sampling. The sampling loop generalizes most commonly-used samplers:
 For more details on how these sampling algorithms can be simplified, generalized
 and implemented in only 5 lines of code, see Appendix A of [[Permenter and
 Yuan]](https://arxiv.org/abs/2306.04848).
+
+
+[diffusion-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/diffusion.py
+[unet-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
+[diffusers-wrapper]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
+[stablediffusion]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
