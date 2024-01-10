@@ -30,11 +30,9 @@ losses   = [ns.loss.item() for ns in trainer]
 ```
 
 ### U-Net models
-The same code can be used to train [U-Net-based
-models](/examples/unet.py). Multi-GPU training and sampling is also supported
-via [`accelerate`](https://github.com/huggingface/accelerate). To train a model
-on the FashionMNIST dataset and generate a batch of samples (after first running
-`accelerate config`):
+The same code can be used to train [U-Net-based models](/examples/unet.py). To
+train a model on the FashionMNIST dataset and generate a batch of samples (after
+first running `accelerate config`):
 
 ```
 accelerate launch examples/fashion_mnist.py
@@ -43,8 +41,11 @@ accelerate launch examples/fashion_mnist.py
 With the provided default parameters and training on a single GPU for around 2
 hours, the model can achieve a [FID
 score](https://paperswithcode.com/sota/image-generation-on-fashion-mnist) of
-around 12-13, producing the following generated outputs: <p align="center"> <img
-src="/imgs/fashion-mnist-samples.png" width=50%> </p>
+around 12-13, producing the following generated outputs:
+
+<p align="center">
+  <img src="/imgs/fashion-mnist-samples.png" width=50%>
+</p>
 
 ### StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
@@ -85,9 +86,69 @@ data with the provided `MappedDataset` wrapper before constructing a
 `DataLoader`.
 
 ### Model
+All model objects should be a subclass of `torch.nn.Module`. Models should have:
+  - A parameter `input_dims`, a tuple containing the dimensions of the input to
+    the model (not including batchsize).
+  - A method `rand_input(batchsize)` which takes in a batch-size and returns an
+    i.i.d. standard normal random input with shape `[batchsize,
+    *input_dims]`. This method can be inherited by subclassing `ModelMixin` and
+    setting the `input_dims` parameter.
+
+Models are called with two arguments:
+ - `x` is a batch of data of batch-size `B` and shape `[B, *model.input_dims]`.
+ - `sigma` is either a singleton or a batch.
+   1. If `sigma.shape == []`, the same value will be used for each `x`.
+   2. Otherwise `sigma.shape == [B, 1, ..., 1]`, and `x0[i]` will be paired with
+      `sigma[i]`.
+
+Models should return a predicted noise value with the same shape as `x`.
+
+<!-- TODO: add note on xt and zt change of variables -->
 
 ### Schedule
+A `Schedule` object determines the rate at which the noise level `sigma`
+increases during the diffusion process. It is constructed by simply passing in a
+tensor of increasing `sigma` values. `Schedule` objects have the methods
+  - `sample_sigmas(steps)` which subsamples the schedule for sampling.
+  - `sample_batch(batchsize)` which generates batch of `sigma` values selected
+    uniformly at random, for use in training.
+
+Three schedules are provided:
+  1. `ScheduleLogLinear` is a simple schedule which works well on small
+     datasets and toy models.
+  2. `ScheduleDDPM` is commonly used in pixel-space image diffusion models.
+  3. `ScheduleLDM` is commonly used in latent diffusion models,
+     e.g. StableDiffusion.
+
+The following plot shows these three schedules with default parameters.
+<p align="center">
+  <img src="/imgs/schedule.png" width=40%>
+</p>
 
 ### Training
+The `training_loop` generator function provides a simple training loop for
+training a diffusion model , given `loader`, `model` and `schedule` objects
+described above. It yields a namespace with the local variables, for easy
+evaluation during training. For example, to print out the loss every iteration:
+
+```
+for ns in training_loop(loader, model, schedule):
+    print(ns.loss.item())
+```
+
+Multi-GPU training and sampling is also supported via
+[`accelerate`](https://github.com/huggingface/accelerate).
+
 
 ### Sampling
+To sample from a diffusion model, the `samples` generator function takes in a
+`model` and a decreasing list of `sigmas` to use during sampling. This list is
+usually created by calling the `sample_sigmas(steps)` method of a `Schedule`
+object. The generator will yield a sequence of `xt`s produced during
+sampling. The sampling loop generalizes most commonly-used samplers:
+ - For DDPM ([Ho et. al. ](https://arxiv.org/abs/2006.11239)), use `gam=1, mu=0.5`.
+ - For DDIM ([Song et. al. ](https://arxiv.org/abs/2010.02502)), use `gam=1, mu=0`.
+ - For accelerated sampling ([Permenter and Yuan](https://arxiv.org/abs/2306.04848)), use `gam=2`.
+
+For more details, see [Appendix A of Permenter and Yuan
+2023](https://arxiv.org/abs/2306.04848).
