@@ -78,7 +78,7 @@ detailed introduction to diffusion models and the notation used in the code, see
 the [accompanying tutorial](https://www.chenyang.co/diffusion.html).
 
 ### Data
-For training diffusion models, smalldiffusion supports [pytorch `Datasets` and
+For training diffusion models, smalldiffusion supports pytorch [`Datasets` and
 `DataLoaders`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html).
 The training code expects the iterates from a `DataLoader` object to be batches
 of data, without labels. To remove labels from existing datasets, extract the
@@ -88,17 +88,17 @@ data with the provided `MappedDataset` wrapper before constructing a
 ### Model
 All model objects should be a subclass of `torch.nn.Module`. Models should have:
   - A parameter `input_dims`, a tuple containing the dimensions of the input to
-    the model (not including batchsize).
+    the model (not including batch-size).
   - A method `rand_input(batchsize)` which takes in a batch-size and returns an
     i.i.d. standard normal random input with shape `[batchsize,
-    *input_dims]`. This method can be inherited by subclassing `ModelMixin` and
-    setting the `input_dims` parameter.
+    *input_dims]`. This method can be inherited from the provided `ModelMixin`
+    class when the `input_dims` parameter is set.
 
 Models are called with two arguments:
  - `x` is a batch of data of batch-size `B` and shape `[B, *model.input_dims]`.
  - `sigma` is either a singleton or a batch.
    1. If `sigma.shape == []`, the same value will be used for each `x`.
-   2. Otherwise `sigma.shape == [B, 1, ..., 1]`, and `x0[i]` will be paired with
+   2. Otherwise `sigma.shape == [B, 1, ..., 1]`, and `x[i]` will be paired with
       `sigma[i]`.
 
 Models should return a predicted noise value with the same shape as `x`.
@@ -146,9 +146,10 @@ To sample from a diffusion model, the `samples` generator function takes in a
 usually created by calling the `sample_sigmas(steps)` method of a `Schedule`
 object. The generator will yield a sequence of `xt`s produced during
 sampling. The sampling loop generalizes most commonly-used samplers:
- - For DDPM ([Ho et. al. ](https://arxiv.org/abs/2006.11239)), use `gam=1, mu=0.5`.
- - For DDIM ([Song et. al. ](https://arxiv.org/abs/2010.02502)), use `gam=1, mu=0`.
- - For accelerated sampling ([Permenter and Yuan](https://arxiv.org/abs/2306.04848)), use `gam=2`.
+ - For DDPM [[Ho et. al. ]](https://arxiv.org/abs/2006.11239), use `gam=1, mu=0.5`.
+ - For DDIM [[Song et. al. ]](https://arxiv.org/abs/2010.02502), use `gam=1, mu=0`.
+ - For accelerated sampling [[Permenter and Yuan]](https://arxiv.org/abs/2306.04848), use `gam=2`.
 
-For more details, see [Appendix A of Permenter and Yuan
-2023](https://arxiv.org/abs/2306.04848).
+For more details on how these sampling algorithms can be simplified, generalized
+and implemented in only 5 lines of code, see Appendix A of [[Permenter and
+Yuan]](https://arxiv.org/abs/2306.04848).
