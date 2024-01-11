@@ -85,6 +85,10 @@ of data, without labels. To remove labels from existing datasets, extract the
 data with the provided `MappedDataset` wrapper before constructing a
 `DataLoader`.
 
+Two toy datasets, `Swissroll` and
+[`DatasaurusDozen`](https://www.research.autodesk.com/publications/same-stats-different-graphs/),
+are provided.
+
 ### Model
 All model objects should be a subclass of `torch.nn.Module`. Models should have:
   - A parameter `input_dims`, a tuple containing the dimensions of the input to
