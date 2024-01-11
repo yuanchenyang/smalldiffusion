@@ -1,5 +1,7 @@
 # smalldiffusion
 
+[![Build Status][build-img]][build-url]
+
 A lightweight diffusion library for training and sampling from diffusion
 models. It is built for easy experimentation when training new models and
 developing new samplers, supporting minimal toy models to state-of-the-art
@@ -28,6 +30,12 @@ trainer  = training_loop(loader, model, schedule, epochs=10000)
 losses   = [ns.loss.item() for ns in trainer]
 *xt, x0  = samples(model, schedule.sample_sigmas(20))
 ```
+
+Results on various toy datasets:
+
+<p align="center">
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/toy_models.png" width=90%>
+</p>
 
 ### U-Net models
 The same code can be used to train [U-Net-based models][unet-py]. To
@@ -163,3 +171,5 @@ Yuan]](https://arxiv.org/abs/2306.04848).
 [unet-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
 [diffusers-wrapper]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
 [stablediffusion]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
+[build-img]: https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg?branch=main
+[build-url]: https://github.com/yuanchenyang/smalldiffusion/actions?query=workflow%3ACI
