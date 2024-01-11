@@ -34,7 +34,7 @@ losses   = [ns.loss.item() for ns in trainer]
 Results on various toy datasets:
 
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/toy_models.png" width=90%>
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/toy_models.png" width=100%>
 </p>
 
 ### U-Net models
@@ -171,5 +171,5 @@ Yuan]](https://arxiv.org/abs/2306.04848).
 [unet-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
 [diffusers-wrapper]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
 [stablediffusion]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
-[build-img]: https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg?branch=main
+[build-img]: https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg
 [build-url]: https://github.com/yuanchenyang/smalldiffusion/actions?query=workflow%3ACI
