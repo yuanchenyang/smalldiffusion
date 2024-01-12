@@ -79,7 +79,7 @@ schedules, as demonstrated in [examples/stablediffusion.py][stablediffusion]. A
 few examples on tweaking the parameter `gam`:
 
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/sd_examples.png" width=100%>
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/sd_examples.jpg" width=100%>
 </p>
 
 
