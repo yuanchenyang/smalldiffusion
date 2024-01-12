@@ -61,7 +61,7 @@ DDPM, DDIM as well as accelerated sampling algorithms. In
 [examples/diffusers_wrapper.py][diffusers-wrapper], we provide a
 simple wrapper for any pretrained [huggingface
 diffusers](https://github.com/huggingface/diffusers) latent diffusion model,
-enabling sampling from pretrained models with only a few lines of code
+enabling sampling from pretrained models with only a few lines of code:
 
 ```python
 from diffusers_wrapper import ModelLatentDiffusion
@@ -75,8 +75,12 @@ decoded  = model.decode_latents(x0)
 ```
 
 It is easy to experiment with different sampler parameters and sampling
-schedules, as demonstrated in
-[examples/stablediffusion.py][stablediffusion].
+schedules, as demonstrated in [examples/stablediffusion.py][stablediffusion]. A
+few examples on tweaking the parameter `gam`:
+
+<p align="center">
+  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/sd_examples.png" width=100%>
+</p>
 
 
 # How to use
