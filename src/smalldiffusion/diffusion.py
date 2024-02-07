@@ -32,10 +32,11 @@ class Schedule:
                        .round().astype(np.int64) - 1)
         return self[indices + [0]]
 
-    def sample_batch(self, batchsize: int) -> torch.FloatTensor:
+    def sample_batch(self, x0: torch.FloatTensor) -> torch.FloatTensor:
         '''Called during training to get a batch of randomly sampled sigma values
         '''
-        return self[torch.randint(len(self), (batchsize,))]
+        batchsize = x0.shape[0]
+        return self[torch.randint(len(self), (batchsize,))].to(x0)
 
 def sigmas_from_betas(betas: torch.FloatTensor):
     return (1/torch.cumprod(1.0 - betas, dim=0) - 1).sqrt()
@@ -59,10 +60,10 @@ class ScheduleLDM(Schedule):
 #   eps  : i.i.d. normal with same shape as x0
 #   sigma: uniformly sampled from schedule, with shape Bx1x..x1 for broadcasting
 def generate_train_sample(x0: torch.FloatTensor, schedule: Schedule):
-    sigma = schedule.sample_batch(x0.shape[0]).to(x0)
+    sigma = schedule.sample_batch(x0)
     while len(sigma.shape) < len(x0.shape):
         sigma = sigma.unsqueeze(-1)
-    eps = torch.randn(x0.shape).to(x0)
+    eps = torch.randn_like(x0)
     return sigma, eps
 
 # Model objects
