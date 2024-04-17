@@ -8,5 +8,5 @@ from .data import (
 )
 
 from .model import (
-    TimeInputMLP, ModelMixin, get_sigma_embeds, IdealDenoiser
+    TimeInputMLP, ModelMixin, get_sigma_embeds, IdealDenoiser, DiT
 )

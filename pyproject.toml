@@ -1,6 +1,6 @@
 [project]
 name = "smalldiffusion"
-version = "0.1"
+version = "0.2"
 description = "A minimal but functional implementation of diffusion model training and sampling"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,10 +46,10 @@ dependencies = [
 
 [project.optional-dependencies] # Optional
 dev = ["build", "twine"]
-test = ["pytest", "diffusers==0.25.0"]
+test = ["pytest", "diffusers==0.27.2"]
 examples = [
   "einops",
-  "diffusers==0.25.0",
+  "diffusers",
   "transformers",
   "datasets",
   "jupyter",
