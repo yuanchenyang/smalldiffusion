@@ -36,6 +36,7 @@ dependencies = [
   "torchvision",
   "torch",
   "tqdm",
+  "einops",
 ]
 
 [project.urls]
