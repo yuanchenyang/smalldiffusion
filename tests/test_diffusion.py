@@ -175,7 +175,7 @@ class TestPipeline(unittest.TestCase):
             trainer = training_loop(loader, model, schedule, epochs=epochs, lr=1e-3,
                                     accelerator=accelerator)
 
-            # Mainly to test that model trains without erroe
+            # Mainly to test that model trains without error
             losses = [ns.loss.item() for ns in trainer]
             self.assertEqual(len(losses), epochs)
 
@@ -183,3 +183,12 @@ class TestPipeline(unittest.TestCase):
             *_, sample = samples(model, schedule.sample_sigmas(sample_steps), gam=1, batchsize=B//2,
                                  accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))
+
+class TestDiT(unittest.TestCase):
+    def test_basic_setup(self):
+        # Just testing that model creation and forward pass works
+        model = DiT(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
+        x = torch.randn(10, 3, 16, 16)
+        sigma = torch.tensor(1)
+        y = model(x, sigma)
+        self.assertEqual(y.shape, x.shape)
