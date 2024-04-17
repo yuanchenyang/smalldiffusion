@@ -41,8 +41,24 @@ class TestSchedule(unittest.TestCase, TensorTest):
     def test_DDPMScheduler(self):
         for N, beta_start, beta_end in self.params:
             self.compare_scheduler_sigmas(
-                DDIMScheduler(num_train_timesteps=N, beta_start=beta_start, beta_end=beta_end),
-                ScheduleDDPM(N, beta_start=beta_start, beta_end=beta_end)
+                DDIMScheduler(num_train_timesteps=N, beta_start=beta_start,
+                              beta_end=beta_end),
+                ScheduleDDPM(N, beta_start=beta_start, beta_end=beta_end))
+
+    def test_CosineScheduler(self):
+        for N, beta_start, beta_end in self.params:
+            self.compare_scheduler_sigmas(
+                DDIMScheduler(num_train_timesteps=N, beta_start=beta_start,
+                              beta_end=beta_end, beta_schedule='squaredcos_cap_v2'),
+                ScheduleCosine(N, beta_start=beta_start, beta_end=beta_end)
+            )
+
+    def test_SigmoidScheduler(self):
+        for N, beta_start, beta_end in self.params:
+            self.compare_scheduler_sigmas(
+                DDPMScheduler(num_train_timesteps=N, beta_start=beta_start,
+                              beta_end=beta_end, beta_schedule='sigmoid'),
+                ScheduleSigmoid(N, beta_start=beta_start, beta_end=beta_end)
             )
 
     def test_LDMScheduler(self):

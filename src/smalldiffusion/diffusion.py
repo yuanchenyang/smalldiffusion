@@ -56,6 +56,20 @@ class ScheduleLDM(Schedule):
     def __init__(self, N: int=1000, beta_start: float=0.00085, beta_end: float=0.012):
         super().__init__(sigmas_from_betas(torch.linspace(beta_start**0.5, beta_end**0.5, N)**2))
 
+# Sigmoid schedule used in GeoDiff
+class ScheduleSigmoid(Schedule):
+    def __init__(self, N: int=1000, beta_start: float=0.0001, beta_end: float=0.02):
+        betas = torch.sigmoid(torch.linspace(-6, 6, N)) * (beta_end - beta_start) + beta_start
+        super().__init__(sigmas_from_betas(betas))
+
+# Cosine schedule used in Nichol and Dhariwal 2021
+class ScheduleCosine(Schedule):
+    def __init__(self, N: int=1000, beta_start: float=0.0001, beta_end: float=0.02, max_beta: float=0.999):
+        alpha_bar = lambda t: np.cos((t + 0.008) / 1.008 * np.pi / 2) ** 2
+        betas = [min(1 - alpha_bar((i+1)/N)/alpha_bar(i/N), max_beta)
+                 for i in range(N)]
+        super().__init__(sigmas_from_betas(torch.tensor(betas, dtype=torch.float32)))
+
 # Given a batch of data x0, returns:
 #   eps  : i.i.d. normal with same shape as x0
 #   sigma: uniformly sampled from schedule, with shape Bx1x..x1 for broadcasting

@@ -1,6 +1,6 @@
 from .diffusion import (
-    Schedule, ScheduleLogLinear, ScheduleDDPM, ScheduleLDM,
-    training_loop, samples
+    Schedule, ScheduleLogLinear, ScheduleDDPM, ScheduleLDM, ScheduleCosine,
+    ScheduleSigmoid, training_loop, samples
 )
 
 from .data import (
