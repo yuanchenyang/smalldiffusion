@@ -37,26 +37,33 @@ losses   = [ns.loss.item() for ns in trainer]
 Results on various toy datasets:
 
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/toy_models.png" width=100%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/toy_models.png" width=100%>
 </p>
 
-### U-Net models
-The same code can be used to train [U-Net-based models][unet-py]. To
-train a model on the FashionMNIST dataset and generate a batch of samples (after
-first running `accelerate config`):
+### Diffusion Transformer
+We provide [a concise implementation][model-code] of the diffusion transformer introduced in
+[[Peebles and Xie 2022]][dit-paper]. To train a model on the FashionMNIST dataset and
+generate a batch of samples (after first running `accelerate config`):
 
 ```
-accelerate launch examples/fashion_mnist.py
+accelerate launch examples/fashion_mnist_dit.py
 ```
 
 With the provided default parameters and training on a single GPU for around 2
 hours, the model can achieve a [FID
 score](https://paperswithcode.com/sota/image-generation-on-fashion-mnist) of
-around 12-13, producing the following generated outputs:
+around 5-6, producing the following generated outputs:
 
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/fashion-mnist-samples.png" width=50%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/fashion-mnist-samples.png" width=50%>
 </p>
+
+### U-Net models
+The same code can be used to train [U-Net-based models][unet-py].
+
+```
+accelerate launch examples/fashion_mnist_unet.py
+```
 
 ### StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
@@ -82,7 +89,7 @@ schedules, as demonstrated in [examples/stablediffusion.py][stablediffusion]. A
 few examples on tweaking the parameter `gam`:
 
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/sd_examples.jpg" width=100%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/sd_examples.jpg" width=100%>
 </p>
 
 
@@ -141,7 +148,7 @@ Three schedules are provided:
 
 The following plot shows these three schedules with default parameters.
 <p align="center">
-  <img src="https://github.com/yuanchenyang/smalldiffusion/blob/main/imgs/schedule.png" width=40%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/schedule.png" width=40%>
 </p>
 
 ### Training
@@ -174,15 +181,17 @@ and implemented in only 5 lines of code, see Appendix A of [[Permenter and
 Yuan]][arxiv-url].
 
 
-[diffusion-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/diffusion.py
-[unet-py]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
-[diffusers-wrapper]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
-[stablediffusion]: https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
-[build-img]: https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg
-[build-url]: https://github.com/yuanchenyang/smalldiffusion/actions?query=workflow%3ACI
-[pypi-img]: https://img.shields.io/badge/pypi-blue
-[pypi-url]: https://pypi.org/project/smalldiffusion/
-[blog-img]: https://img.shields.io/badge/Tutorial-blogpost-blue
-[blog-url]: https://www.chenyang.co/diffusion.html
-[arxiv-img]: https://img.shields.io/badge/Paper-arxiv-blue
-[arxiv-url]: https://arxiv.org/abs/2306.04848
+[diffusion-py]:https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/diffusion.py
+[unet-py]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
+[diffusers-wrapper]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
+[stablediffusion]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
+[build-img]:https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg
+[build-url]:https://github.com/yuanchenyang/smalldiffusion/actions?query=workflow%3ACI
+[pypi-img]:https://img.shields.io/badge/pypi-blue
+[pypi-url]:https://pypi.org/project/smalldiffusion/
+[dit-paper]:https://arxiv.org/abs/2212.09748
+[model-code]:https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/model.py
+[blog-img]:https://img.shields.io/badge/Tutorial-blogpost-blue
+[blog-url]:https://www.chenyang.co/diffusion.html
+[arxiv-img]:https://img.shields.io/badge/Paper-arxiv-blue
+[arxiv-url]:https://arxiv.org/abs/2306.04848
