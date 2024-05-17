@@ -2,6 +2,7 @@
 
 [![Tutorial blog post][blog-img]][blog-url]
 [![Paper link][arxiv-img]][arxiv-url]
+[![Open in Colab][colab-img]][colab-url]
 [![Pypi project][pypi-img]][pypi-url]
 [![Build Status][build-img]][build-url]
 
@@ -195,3 +196,5 @@ Yuan]][arxiv-url].
 [blog-url]:https://www.chenyang.co/diffusion.html
 [arxiv-img]:https://img.shields.io/badge/Paper-arxiv-blue
 [arxiv-url]:https://arxiv.org/abs/2306.04848
+[colab-url]:https://colab.research.google.com/drive/1So1lb9fG-AnDeSXNbosCnDbxbzf5xbor?usp=sharing
+[colab-img]:https://colab.research.google.com/assets/colab-badge.svg
