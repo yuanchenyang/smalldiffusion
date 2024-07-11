@@ -1,3 +1,4 @@
+import math
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -5,21 +6,64 @@ from torch import nn
 from einops import rearrange, repeat
 from itertools import pairwise
 
+
 ## Basic functions used by all models
 
-def get_sigma_embeds(batches, sigma):
+def sigma_log_scale(batches, sigma, scaling_factor):
     if sigma.shape == torch.Size([]):
         sigma = sigma.unsqueeze(0).repeat(batches)
     else:
         assert sigma.shape == (batches,), 'sigma.shape == [] or [batches]!'
-    sigma = sigma.unsqueeze(1)
-    return torch.cat([torch.sin(torch.log(sigma)/2),
-                      torch.cos(torch.log(sigma)/2)], dim=1)
+    return torch.log(sigma)*scaling_factor
+
+def get_sigma_embeds(batches, sigma, scaling_factor=0.5):
+    s = sigma_log_scale(batches, sigma, scaling_factor).unsqueeze(1)
+    return torch.cat([torch.sin(s), torch.cos(s)], dim=1)
 
 class ModelMixin:
     def rand_input(self, batchsize):
         assert hasattr(self, 'input_dims'), 'Model must have "input_dims" attribute!'
         return torch.randn((batchsize,) + self.input_dims)
+
+    # Currently predicts eps, override following methods to predict, for example, x0
+    def get_loss(self, x0, sigma, eps):
+        return nn.MSELoss()(eps, self(x0 + sigma * eps, sigma))
+
+    def predict_eps(self, x, sigma):
+        return self(x, sigma)
+
+## Modifiers for models, such as including scaling or changing model predictions
+
+def alpha(sigma):
+    return 1/(1+sigma**2)
+
+# Scale model input so that its norm stays constant for all sigma
+def Scaled(cls: ModelMixin):
+    def forward(self, x, sigma):
+        return cls.forward(self, x * alpha(sigma).sqrt(), sigma)
+    return type(cls.__name__ + 'Scaled', (cls,), dict(forward=forward))
+
+# Train model to predict x0 instead of eps
+def PredX0(cls: ModelMixin):
+    def get_loss(self, x0, sigma, eps):
+        return nn.MSELoss()(x0, self(x0 + sigma * eps, sigma))
+    def predict_eps(self, x, sigma):
+        x0_hat = self(x, sigma)
+        return (x - x0_hat)/sigma
+    return type(cls.__name__ + 'PredX0', (cls,),
+                dict(get_loss=get_loss, predict_eps=predict_eps))
+
+# Train model to predict v (https://arxiv.org/pdf/2202.00512.pdf) instead of eps
+def PredV(cls: ModelMixin):
+    def get_loss(self, x0, sigma, eps):
+        xt = x0 + sigma * eps
+        v = alpha(sigma).sqrt() * eps - (1-alpha(sigma)).sqrt() * x0
+        return nn.MSELoss()(v, self(xt, sigma))
+    def predict_eps(self, x, sigma):
+        v_hat = self(x, sigma)
+        return alpha(sigma).sqrt() * (v_hat + (1-alpha(sigma)).sqrt() * x)
+    return type(cls.__name__ + 'PredV', (cls,),
+                dict(get_loss=get_loss, predict_eps=predict_eps))
 
 
 ## Simple MLP for toy examples
@@ -50,7 +94,7 @@ def sq_norm(M, k):
     return (torch.norm(M, dim=1)**2).unsqueeze(1).repeat(1,k)
 
 class IdealDenoiser(ModelMixin):
-    def __init__(self, dataset):
+    def __init__(self, dataset: torch.utils.data.Dataset):
         self.data = torch.stack([dataset[i] for i in range(len(dataset))])
         self.input_dims = self.data.shape[1:]
 
@@ -66,6 +110,7 @@ class IdealDenoiser(ModelMixin):
         sq_diffs = sq_norm(x_flat, db) + sq_norm(d_flat, xb).T - 2 * x_flat @ d_flat.T
         weights = torch.nn.functional.softmax(-sq_diffs/2/sigma**2, dim=1)
         return (x - torch.einsum('ij,j...->i...', weights, data))/sigma
+
 
 ## Diffusion transformer
 
@@ -159,21 +204,22 @@ def get_pos_embed(in_dim, patch_size, dim, N=10000):
 
 class DiT(nn.Module, ModelMixin):
     def __init__(self, in_dim=32, channels=3, patch_size=2, depth=12,
-                 head_dim=64, num_heads=6, mlp_ratio=4.0):
+                 head_dim=64, num_heads=6, mlp_ratio=4.0, sig_embed_factor=0.5,
+                 sig_embed_class=None):
         super().__init__()
         self.in_dim = in_dim
         self.channels = channels
         self.patch_size = patch_size
         self.input_dims = (channels, in_dim, in_dim)
+
         dim = head_dim * num_heads
 
         self.pos_embed = get_pos_embed(in_dim, patch_size, dim)
         self.x_embed = PatchEmbed(patch_size, channels, dim, bias=True)
-        self.sig_mlp = nn.Sequential(
-            nn.Linear(2, dim, bias=True),
-            nn.SiLU(),
-            nn.Linear(dim, dim, bias=True),
+        self.sig_embed = (sig_embed_class or SigmaEmbedderSinCos)(
+            dim, scaling_factor=sig_embed_factor
         )
+
         self.blocks = nn.ModuleList([
             DiTBlock(head_dim, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
         ])
@@ -192,8 +238,8 @@ class DiT(nn.Module, ModelMixin):
         self.apply(_basic_init)
 
         # Initialize sigma embedding MLP:
-        nn.init.normal_(self.sig_mlp[0].weight, std=0.02)
-        nn.init.normal_(self.sig_mlp[2].weight, std=0.02)
+        nn.init.normal_(self.sig_embed.mlp[0].weight, std=0.02)
+        nn.init.normal_(self.sig_embed.mlp[2].weight, std=0.02)
 
         # Zero-out output layers:
         nn.init.constant_(self.final_linear.weight, 0)
@@ -210,9 +256,23 @@ class DiT(nn.Module, ModelMixin):
         # (B, C, H, W), Union[(B, 1, 1, 1), ()] -> (B, C, H, W)
         # N = num_patches, D = dim = head_dim * num_heads
         x = self.x_embed(x) + self.pos_embed                      # (B, N, D)
-        sig_embed = get_sigma_embeds(x.shape[0], sigma.squeeze()) # (B, 2)
-        y = self.sig_mlp(sig_embed)                               # (B, D)
+        y = self.sig_embed(x.shape[0], sigma.squeeze())           # (B, D)
         for block in self.blocks:
             x = block(x, y)                                       # (B, N, D)
         x = self.final_linear(self.final_norm(x, y))              # (B, N, patchsize**2 * channels)
         return self.unpatchify(x)
+
+# A simple embedding that works just as well as usual sinusoidal embedding
+class SigmaEmbedderSinCos(nn.Module):
+    def __init__(self, hidden_size, scaling_factor=0.5):
+        super().__init__()
+        self.scaling_factor = scaling_factor
+        self.mlp = nn.Sequential(
+            nn.Linear(2, hidden_size, bias=True),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size, bias=True),
+        )
+
+    def forward(self, batches, sigma):
+        sig_embed = get_sigma_embeds(batches, sigma, self.scaling_factor) # (B, 2)
+        return self.mlp(sig_embed)                                        # (B, D)

@@ -100,8 +100,7 @@ def training_loop(loader     : DataLoader,
         for x0 in loader:
             optimizer.zero_grad()
             sigma, eps = generate_train_sample(x0, schedule)
-            eps_hat = model(x0 + sigma * eps, sigma)
-            loss = nn.MSELoss()(eps_hat, eps)
+            loss = model.get_loss(x0, sigma, eps)
             yield SimpleNamespace(**locals()) # For extracting training statistics
             accelerator.backward(loss)
             optimizer.step()
@@ -125,7 +124,7 @@ def samples(model      : nn.Module,
         batchsize = xt.shape[0]
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
-        eps, eps_prev = model(xt, sig.to(xt)), eps
+        eps, eps_prev = model.predict_eps(xt, sig.to(xt)), eps
         eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
         sig_p = (sig_prev/sig**mu)**(1/(1-mu)) # sig_prev == sig**mu sig_p**(1-mu)
         eta = (sig_prev**2 - sig_p**2).sqrt()
