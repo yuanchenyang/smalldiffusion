@@ -26,11 +26,23 @@ class ModelMixin:
         return torch.randn((batchsize,) + self.input_dims)
 
     # Currently predicts eps, override following methods to predict, for example, x0
-    def get_loss(self, x0, sigma, eps):
-        return nn.MSELoss()(eps, self(x0 + sigma * eps, sigma))
+    def get_loss(self, x0, sigma, eps, cond=None):
+        return nn.MSELoss()(eps, self(x0 + sigma * eps, sigma, cond=cond))
 
-    def predict_eps(self, x, sigma):
-        return self(x, sigma)
+    def predict_eps(self, x, sigma, cond=None):
+        return self(x, sigma, cond=cond)
+
+    def predict_eps_cfg(self, x, sigma, cond, cfg_scale):
+        if cond is None:
+            return self.predict_eps(x, sigma)
+        uncond = torch.full_like(cond, self.cond_embed.null_cond) # (B,)
+        if cfg_scale == 0:
+            return self.predict_eps(x, sigma, cond=uncond)
+        assert sigma.shape == tuple(), 'CFG sampling only supports singleton sigma!'
+        eps_cond, eps_uncond = self.predict_eps(                  # (B,), (B,)
+            torch.cat([x, x]), sigma, torch.cat([cond, uncond])   # (2B,)
+        ).chunk(2)
+        return eps_cond + cfg_scale * (eps_cond - eps_uncond)
 
 ## Modifiers for models, such as including scaling or changing model predictions
 
@@ -39,28 +51,28 @@ def alpha(sigma):
 
 # Scale model input so that its norm stays constant for all sigma
 def Scaled(cls: ModelMixin):
-    def forward(self, x, sigma):
-        return cls.forward(self, x * alpha(sigma).sqrt(), sigma)
+    def forward(self, x, sigma, cond=None):
+        return cls.forward(self, x * alpha(sigma).sqrt(), sigma, cond=cond)
     return type(cls.__name__ + 'Scaled', (cls,), dict(forward=forward))
 
 # Train model to predict x0 instead of eps
 def PredX0(cls: ModelMixin):
-    def get_loss(self, x0, sigma, eps):
-        return nn.MSELoss()(x0, self(x0 + sigma * eps, sigma))
-    def predict_eps(self, x, sigma):
-        x0_hat = self(x, sigma)
+    def get_loss(self, x0, sigma, eps, cond=None):
+        return nn.MSELoss()(x0, self(x0 + sigma * eps, sigma, cond=cond))
+    def predict_eps(self, x, sigma, cond=None):
+        x0_hat = self(x, sigma, cond=cond)
         return (x - x0_hat)/sigma
     return type(cls.__name__ + 'PredX0', (cls,),
                 dict(get_loss=get_loss, predict_eps=predict_eps))
 
 # Train model to predict v (https://arxiv.org/pdf/2202.00512.pdf) instead of eps
 def PredV(cls: ModelMixin):
-    def get_loss(self, x0, sigma, eps):
+    def get_loss(self, x0, sigma, eps, cond=None):
         xt = x0 + sigma * eps
         v = alpha(sigma).sqrt() * eps - (1-alpha(sigma)).sqrt() * x0
-        return nn.MSELoss()(v, self(xt, sigma))
-    def predict_eps(self, x, sigma):
-        v_hat = self(x, sigma)
+        return nn.MSELoss()(v, self(xt, sigma, cond=cond))
+    def predict_eps(self, x, sigma, cond=None):
+        v_hat = self(x, sigma, cond=cond)
         return alpha(sigma).sqrt() * (v_hat + (1-alpha(sigma)).sqrt() * x)
     return type(cls.__name__ + 'PredV', (cls,),
                 dict(get_loss=get_loss, predict_eps=predict_eps))
@@ -79,7 +91,7 @@ class TimeInputMLP(nn.Module, ModelMixin):
         self.net = nn.Sequential(*layers)
         self.input_dims = (dim,)
 
-    def forward(self, x, sigma):
+    def forward(self, x, sigma, cond=None):
         # x     shape: b x dim
         # sigma shape: b x 1 or scalar
         sigma_embeds = get_sigma_embeds(x.shape[0], sigma.squeeze()) # shape: b x 2
@@ -204,8 +216,9 @@ def get_pos_embed(in_dim, patch_size, dim, N=10000):
 
 class DiT(nn.Module, ModelMixin):
     def __init__(self, in_dim=32, channels=3, patch_size=2, depth=12,
-                 head_dim=64, num_heads=6, mlp_ratio=4.0, sig_embed_factor=0.5,
-                 sig_embed_class=None):
+                 head_dim=64, num_heads=6, mlp_ratio=4.0,
+                 sig_embed_class=None, sig_embed_factor=0.5,
+                 cond_embed_class=None, cond_dropout_prob=0.1, cond_num_classes=None):
         super().__init__()
         self.in_dim = in_dim
         self.channels = channels
@@ -219,6 +232,11 @@ class DiT(nn.Module, ModelMixin):
         self.sig_embed = (sig_embed_class or SigmaEmbedderSinCos)(
             dim, scaling_factor=sig_embed_factor
         )
+        self.conditional = cond_embed_class is not None
+        if self.conditional:
+            self.cond_embed = cond_embed_class(
+                dim, num_classes=cond_num_classes, dropout_prob=cond_dropout_prob
+            )
 
         self.blocks = nn.ModuleList([
             DiTBlock(head_dim, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
@@ -252,15 +270,34 @@ class DiT(nn.Module, ModelMixin):
                          ph=patches, pw=patches,
                          psh=self.patch_size, psw=self.patch_size)
 
-    def forward(self, x, sigma):
-        # (B, C, H, W), Union[(B, 1, 1, 1), ()] -> (B, C, H, W)
+    def forward(self, x, sigma, cond=None):
+        # x: (B, C, H, W), sigma: Union[(B, 1, 1, 1), ()], cond: (B, *)
+        # returns: (B, C, H, W)
         # N = num_patches, D = dim = head_dim * num_heads
-        x = self.x_embed(x) + self.pos_embed                      # (B, N, D)
-        y = self.sig_embed(x.shape[0], sigma.squeeze())           # (B, D)
+        x = self.x_embed(x) + self.pos_embed            # (B, N, D)
+        y = self.sig_embed(x.shape[0], sigma.squeeze()) # (B, D)
+        if self.conditional:
+            assert x.shape[0] == cond.shape[0], 'Conditioning must have same batches as x!'
+            y += self.cond_embed(cond)                  # (B, D)
         for block in self.blocks:
-            x = block(x, y)                                       # (B, N, D)
-        x = self.final_linear(self.final_norm(x, y))              # (B, N, patchsize**2 * channels)
+            x = block(x, y)                             # (B, N, D)
+        x = self.final_linear(self.final_norm(x, y))    # (B, N, patchsize**2 * channels)
         return self.unpatchify(x)
+
+# Embedding table for conditioning on labels assumed to be in [0, num_classes),
+# unconditional label encoded as: num_classes
+class CondEmbedderLabel(nn.Module):
+    def __init__(self, hidden_size, num_classes, dropout_prob):
+        super().__init__()
+        self.embeddings = nn.Embedding(num_classes + 1, hidden_size)
+        self.null_cond = num_classes
+        self.dropout_prob = dropout_prob
+
+    def forward(self, labels): # (B,) -> (B, D)
+        if self.training:
+            drop_ids = torch.rand(labels.shape[0], device=labels.device) < self.dropout_prob
+            labels = torch.where(drop_ids, self.null_cond, labels)
+        return self.embeddings(labels)
 
 # A simple embedding that works just as well as usual sinusoidal embedding
 class SigmaEmbedderSinCos(nn.Module):

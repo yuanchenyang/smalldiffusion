@@ -10,11 +10,12 @@ from smalldiffusion import *
 def get_hf_sigmas(scheduler):
     return (1/scheduler.alphas_cumprod - 1).sqrt()
 
-class DummyModel(ModelMixin):
+class DummyModel(torch.nn.Module, ModelMixin):
     def __init__(self, dims):
+        super().__init__()
         self.input_dims = dims
 
-    def __call__(self, x, sigma):
+    def __call__(self, x, sigma, cond=None):
         gen = torch.Generator().manual_seed(int(sigma * 100000))
         return torch.randn((x.shape[0],) + self.input_dims, generator=gen)
 
@@ -184,11 +185,30 @@ class TestPipeline(unittest.TestCase):
                                  accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))
 
+# Just testing that model creation and forward pass works
 class TestDiT(unittest.TestCase):
-    def test_basic_setup(self):
-        # Just testing that model creation and forward pass works
-        model = DiT(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
-        x = torch.randn(10, 3, 16, 16)
-        sigma = torch.tensor(1)
-        y = model(x, sigma)
-        self.assertEqual(y.shape, x.shape)
+    def setUp(self):
+        self.modifiers = [
+            Scaled, PredX0, PredV,
+            lambda x: x,
+            lambda x: Scaled(PredX0(x)),
+            lambda x: Scaled(PredV(x))
+        ]
+
+    def test_uncond(self):
+        for modifier in self.modifiers:
+            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
+            x = torch.randn(10, 3, 16, 16)
+            sigma = torch.tensor(1)
+            y = model.predict_eps(x, sigma)
+            self.assertEqual(y.shape, x.shape)
+
+    def test_cond(self):
+        for modifier in self.modifiers:
+            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6,
+                                  cond_embed_class=CondEmbedderLabel, cond_num_classes=10)
+            x = torch.randn(10, 3, 16, 16)
+            sigma = torch.tensor(1)
+            labels = torch.tensor([1,2,3,4,5] + [10]*5)
+            y = model.predict_eps_cfg(x, sigma, cond=labels, cfg_scale=4.0)
+            self.assertEqual(y.shape, x.shape)
