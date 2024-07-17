@@ -126,8 +126,8 @@ def samples(model      : nn.Module,
             accelerator: Optional[Accelerator] = None):
     accelerator = accelerator or Accelerator()
     xt = model.rand_input(batchsize).to(accelerator.device) * sigmas[0] if xt is None else xt
-    if cfg_scale > 0:
-        assert cond is not None and cond.shape[0] == xt.shape[0], 'cond must have same shape as x!'
+    if cond is not None:
+        assert cond.shape[0] == xt.shape[0], 'cond must have same shape as x!'
         cond = cond.to(xt.device)
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):

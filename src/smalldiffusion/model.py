@@ -35,10 +35,8 @@ class ModelMixin:
     def predict_eps_cfg(self, x, sigma, cond, cfg_scale):
         if cond is None:
             return self.predict_eps(x, sigma)
-        uncond = torch.full_like(cond, self.cond_embed.null_cond) # (B,)
-        if cfg_scale == 0:
-            return self.predict_eps(x, sigma, cond=uncond)
         assert sigma.shape == tuple(), 'CFG sampling only supports singleton sigma!'
+        uncond = torch.full_like(cond, self.cond_embed.null_cond) # (B,)
         eps_cond, eps_uncond = self.predict_eps(                  # (B,), (B,)
             torch.cat([x, x]), sigma, torch.cat([cond, uncond])   # (2B,)
         ).chunk(2)
