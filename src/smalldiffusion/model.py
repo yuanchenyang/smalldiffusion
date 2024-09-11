@@ -103,23 +103,26 @@ def sq_norm(M, k):
     # M: b x n --(norm)--> b --(repeat)--> b x k
     return (torch.norm(M, dim=1)**2).unsqueeze(1).repeat(1,k)
 
-class IdealDenoiser(ModelMixin):
+class IdealDenoiser(nn.Module, ModelMixin):
     def __init__(self, dataset: torch.utils.data.Dataset):
+        super().__init__()
         self.data = torch.stack([dataset[i] for i in range(len(dataset))])
         self.input_dims = self.data.shape[1:]
 
-    def __call__(self, x, sigma):
-        assert sigma.shape == tuple(), 'Only singleton sigma supported'
-        data = self.data.to(x)
+    def forward(self, x, sigma, cond=None):
+        data = self.data.to(x)                                                         # shape: db x c1 x ... x cn
         x_flat = x.flatten(start_dim=1)
         d_flat = data.flatten(start_dim=1)
         xb, xr = x_flat.shape
         db, dr = d_flat.shape
         assert xr == dr, 'Input x must have same dimension as data!'
-        # ||x - x0||^2 ,shape xb x db
-        sq_diffs = sq_norm(x_flat, db) + sq_norm(d_flat, xb).T - 2 * x_flat @ d_flat.T
-        weights = torch.nn.functional.softmax(-sq_diffs/2/sigma**2, dim=1)
-        return (x - torch.einsum('ij,j...->i...', weights, data))/sigma
+        assert sigma.shape == tuple() or sigma.shape[0] == xb, \
+            f'sigma must be singleton or have same batch dimension as x! {sigma.shape}'
+        # sq_diffs: ||x - x0||^2
+        sq_diffs = sq_norm(x_flat, db).T + sq_norm(d_flat, xb) - 2 * d_flat @ x_flat.T # shape: db x xb
+        weights = torch.nn.functional.softmax(-sq_diffs/2/sigma.squeeze()**2, dim=0)             # shape: db x xb
+        eps = torch.einsum('ij,i...->j...', weights, data)                             # shape: xb x c1 x ... x cn
+        return (x - eps) / sigma
 
 
 ## Diffusion transformer

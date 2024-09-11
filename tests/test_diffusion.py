@@ -185,6 +185,18 @@ class TestPipeline(unittest.TestCase):
                                  accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))
 
+class TestIdeal(unittest.TestCase, TensorTest):
+    # Test that ideal deoiser batching works
+    def test_ideal(self):
+        for N in [1, 10, 99]:
+            loader = DataLoader(Swissroll(np.pi/2, 5*np.pi, 30), batch_size=2000)
+            sigmas = torch.linspace(1, 2, N)
+            idd = IdealDenoiser(loader.dataset)
+            x0 = idd.rand_input(N)
+            batched_output = idd(x0, sigmas.unsqueeze(1))
+            singleton_output = torch.cat([idd(x0i.unsqueeze(0), s) for x0i, s in zip(x0, sigmas)])
+            self.assertAlmostEqualTensors(batched_output, singleton_output, tol=1e-6)
+
 # Just testing that model creation and forward pass works
 class TestDiT(unittest.TestCase):
     def setUp(self):
