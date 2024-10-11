@@ -6,6 +6,7 @@ from diffusers import DDIMScheduler, DDPMScheduler
 from accelerate import Accelerator
 
 from smalldiffusion import *
+from smalldiffusion.diffusion import generate_train_sample
 
 def get_hf_sigmas(scheduler):
     return (1/scheduler.alphas_cumprod - 1).sqrt()
@@ -198,29 +199,46 @@ class TestIdeal(unittest.TestCase, TensorTest):
             self.assertAlmostEqualTensors(batched_output, singleton_output, tol=1e-6)
 
 # Just testing that model creation and forward pass works
-class TestDiT(unittest.TestCase):
+class TestModels(unittest.TestCase):
     def setUp(self):
-        self.modifiers = [
+        self.modifiers = (
             Scaled, PredX0, PredV,
             lambda x: x,
             lambda x: Scaled(PredX0(x)),
             lambda x: Scaled(PredV(x))
-        ]
+        )
+        self.batches = (1, 13)
+        self.schedule = ScheduleDDPM(1000)
 
-    def test_uncond(self):
-        for modifier in self.modifiers:
-            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
-            x = torch.randn(10, 3, 16, 16)
-            sigma = torch.tensor(1)
-            y = model.predict_eps(x, sigma)
-            self.assertEqual(y.shape, x.shape)
+    def test_dit_uncond(self):
+        for B in self.batches:
+            for modifier in self.modifiers:
+                model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
+                x = torch.randn(B, 3, 16, 16)
+                for sigma in (torch.tensor(1), torch.randn(B, 1, 1, 1)):
+                    y = model.predict_eps(x, sigma)
+                    self.assertEqual(y.shape, x.shape)
+                model.get_loss(*generate_train_sample(x, self.schedule, conditional=False))
 
-    def test_cond(self):
-        for modifier in self.modifiers:
-            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6,
-                                  cond_embed=CondEmbedderLabel(32*6, 10))
-            x = torch.randn(10, 3, 16, 16)
-            sigma = torch.tensor(1)
-            labels = torch.tensor([1,2,3,4,5] + [10]*5)
-            y = model.predict_eps_cfg(x, sigma, cond=labels, cfg_scale=4.0)
-            self.assertEqual(y.shape, x.shape)
+
+    def test_dit_cond(self):
+        for B in self.batches:
+            for modifier in self.modifiers:
+                model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6,
+                                      cond_embed=CondEmbedderLabel(32*6, 10))
+                x = torch.randn(B, 3, 16, 16)
+                labels = torch.tensor([i % 10 for i in range(B)])
+                y = model.predict_eps_cfg(x, torch.tensor(1), cond=labels, cfg_scale=4.0)
+                self.assertEqual(y.shape, x.shape)
+                model.get_loss(*generate_train_sample((x, labels), self.schedule, conditional=True))
+
+    def test_unet_uncond(self):
+        for B in self.batches:
+            for modifier in self.modifiers:
+                model = modifier(Unet)(in_dim=16, in_ch=3, out_ch=3, ch=64, ch_mult=(1,1,2,),
+                                       num_res_blocks= 2, attn_resolutions=(8,))
+                x = torch.randn(B, 3, 16, 16)
+                for sigma in (torch.tensor(1), torch.randn(B, 1, 1, 1)):
+                    y = model.predict_eps(x, sigma)
+                    self.assertEqual(y.shape, x.shape)
+                model.get_loss(*generate_train_sample(x, self.schedule, conditional=False))

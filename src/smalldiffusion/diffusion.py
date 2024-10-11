@@ -70,7 +70,9 @@ class ScheduleCosine(Schedule):
                  for i in range(N)]
         super().__init__(sigmas_from_betas(torch.tensor(betas, dtype=torch.float32)))
 
-# Given a batch of data x0, returns:
+# Given a batch of data
+#   x0   : Either a data tensor or a tuple of (data, labels)
+# Returns
 #   eps  : i.i.d. normal with same shape as x0
 #   sigma: uniformly sampled from schedule, with shape Bx1x..x1 for broadcasting
 def generate_train_sample(x0: Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]],

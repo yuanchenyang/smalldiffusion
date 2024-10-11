@@ -79,8 +79,7 @@ def get_pos_embed(in_dim, patch_size, dim, N=10000):
 class DiT(nn.Module, ModelMixin):
     def __init__(self, in_dim=32, channels=3, patch_size=2, depth=12,
                  head_dim=64, num_heads=6, mlp_ratio=4.0,
-                 sig_embed_class=None, sig_embed_factor=0.5,
-                 cond_embed=None):
+                 sig_embed=None, cond_embed=None):
         super().__init__()
         self.in_dim = in_dim
         self.channels = channels
@@ -91,9 +90,7 @@ class DiT(nn.Module, ModelMixin):
 
         self.pos_embed = get_pos_embed(in_dim, patch_size, dim)
         self.x_embed = PatchEmbed(patch_size, channels, dim, bias=True)
-        self.sig_embed = (sig_embed_class or SigmaEmbedderSinCos)(
-            dim, scaling_factor=sig_embed_factor
-        )
+        self.sig_embed = sig_embed or SigmaEmbedderSinCos(dim)
         self.cond_embed = cond_embed
 
         self.blocks = CondSequential(*[
