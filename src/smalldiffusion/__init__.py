@@ -8,8 +8,12 @@ from .data import (
 )
 
 from .model import (
-    ModelMixin, Scaled, PredX0, PredV,
-    TimeInputMLP, IdealDenoiser, DiT,
-    get_sigma_embeds, SigmaEmbedderSinCos,
-    CondEmbedderLabel
+    ModelMixin,
+    Scaled, PredX0, PredV,
+    TimeInputMLP, IdealDenoiser,
+    get_sigma_embeds,
+    SigmaEmbedderSinCos,
+    CondEmbedderLabel,
 )
+
+from .model_dit import DiT

@@ -218,7 +218,7 @@ class TestDiT(unittest.TestCase):
     def test_cond(self):
         for modifier in self.modifiers:
             model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6,
-                                  cond_embed_class=CondEmbedderLabel, cond_num_classes=10)
+                                  cond_embed=CondEmbedderLabel(32*6, 10))
             x = torch.randn(10, 3, 16, 16)
             sigma = torch.tensor(1)
             labels = torch.tensor([1,2,3,4,5] + [10]*5)
