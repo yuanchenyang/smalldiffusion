@@ -10,11 +10,12 @@ from smalldiffusion import *
 def get_hf_sigmas(scheduler):
     return (1/scheduler.alphas_cumprod - 1).sqrt()
 
-class DummyModel(ModelMixin):
+class DummyModel(torch.nn.Module, ModelMixin):
     def __init__(self, dims):
+        super().__init__()
         self.input_dims = dims
 
-    def __call__(self, x, sigma):
+    def __call__(self, x, sigma, cond=None):
         gen = torch.Generator().manual_seed(int(sigma * 100000))
         return torch.randn((x.shape[0],) + self.input_dims, generator=gen)
 
@@ -184,11 +185,42 @@ class TestPipeline(unittest.TestCase):
                                  accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))
 
+class TestIdeal(unittest.TestCase, TensorTest):
+    # Test that ideal deoiser batching works
+    def test_ideal(self):
+        for N in [1, 10, 99]:
+            loader = DataLoader(Swissroll(np.pi/2, 5*np.pi, 30), batch_size=2000)
+            sigmas = torch.linspace(1, 2, N)
+            idd = IdealDenoiser(loader.dataset)
+            x0 = idd.rand_input(N)
+            batched_output = idd(x0, sigmas.unsqueeze(1))
+            singleton_output = torch.cat([idd(x0i.unsqueeze(0), s) for x0i, s in zip(x0, sigmas)])
+            self.assertAlmostEqualTensors(batched_output, singleton_output, tol=1e-6)
+
+# Just testing that model creation and forward pass works
 class TestDiT(unittest.TestCase):
-    def test_basic_setup(self):
-        # Just testing that model creation and forward pass works
-        model = DiT(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
-        x = torch.randn(10, 3, 16, 16)
-        sigma = torch.tensor(1)
-        y = model(x, sigma)
-        self.assertEqual(y.shape, x.shape)
+    def setUp(self):
+        self.modifiers = [
+            Scaled, PredX0, PredV,
+            lambda x: x,
+            lambda x: Scaled(PredX0(x)),
+            lambda x: Scaled(PredV(x))
+        ]
+
+    def test_uncond(self):
+        for modifier in self.modifiers:
+            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6)
+            x = torch.randn(10, 3, 16, 16)
+            sigma = torch.tensor(1)
+            y = model.predict_eps(x, sigma)
+            self.assertEqual(y.shape, x.shape)
+
+    def test_cond(self):
+        for modifier in self.modifiers:
+            model = modifier(DiT)(in_dim=16, channels=3, patch_size=2, depth=4, head_dim=32, num_heads=6,
+                                  cond_embed=CondEmbedderLabel(32*6, 10))
+            x = torch.randn(10, 3, 16, 16)
+            sigma = torch.tensor(1)
+            labels = torch.tensor([1,2,3,4,5] + [10]*5)
+            y = model.predict_eps_cfg(x, sigma, cond=labels, cfg_scale=4.0)
+            self.assertEqual(y.shape, x.shape)

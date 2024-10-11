@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from types import SimpleNamespace
-from typing import Optional
+from typing import Optional, Union, Tuple
 
 class Schedule:
     '''Diffusion noise schedules parameterized by sigma'''
@@ -73,12 +73,15 @@ class ScheduleCosine(Schedule):
 # Given a batch of data x0, returns:
 #   eps  : i.i.d. normal with same shape as x0
 #   sigma: uniformly sampled from schedule, with shape Bx1x..x1 for broadcasting
-def generate_train_sample(x0: torch.FloatTensor, schedule: Schedule):
+def generate_train_sample(x0: Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]],
+                          schedule: Schedule, conditional: bool=False):
+    cond = x0[1] if conditional else None
+    x0   = x0[0] if conditional else x0
     sigma = schedule.sample_batch(x0)
     while len(sigma.shape) < len(x0.shape):
         sigma = sigma.unsqueeze(-1)
     eps = torch.randn_like(x0)
-    return sigma, eps
+    return x0, sigma, eps, cond
 
 # Model objects
 # Always called with (x, sigma):
@@ -87,20 +90,22 @@ def generate_train_sample(x0: torch.FloatTensor, schedule: Schedule):
 #   Otherwise, x[i] will be paired with sigma[i] when calling model
 # Have a `rand_input` method for generating random xt during sampling
 
-def training_loop(loader     : DataLoader,
-                  model      : nn.Module,
-                  schedule   : Schedule,
-                  accelerator: Optional[Accelerator] = None,
-                  epochs     : int = 10000,
-                  lr         : float = 1e-3):
+def training_loop(loader      : DataLoader,
+                  model       : nn.Module,
+                  schedule    : Schedule,
+                  accelerator : Optional[Accelerator] = None,
+                  epochs      : int = 10000,
+                  lr          : float = 1e-3,
+                  conditional : bool = False):
     accelerator = accelerator or Accelerator()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     model, optimizer, loader = accelerator.prepare(model, optimizer, loader)
     for _ in (pbar := tqdm(range(epochs))):
         for x0 in loader:
+            model.train()
             optimizer.zero_grad()
-            sigma, eps = generate_train_sample(x0, schedule)
-            loss = model.get_loss(x0, sigma, eps)
+            x0, sigma, eps, cond = generate_train_sample(x0, schedule, conditional)
+            loss = model.get_loss(x0, sigma, eps, cond=cond)
             yield SimpleNamespace(**locals()) # For extracting training statistics
             accelerator.backward(loss)
             optimizer.step()
@@ -114,19 +119,22 @@ def samples(model      : nn.Module,
             sigmas     : torch.FloatTensor, # Iterable with N+1 values for N sampling steps
             gam        : float = 1.,        # Suggested to use gam >= 1
             mu         : float = 0.,        # Requires mu in [0, 1)
+            cfg_scale  : int = 0.,          # 0 means no classifier-free guidance
+            batchsize  : int = 1,
             xt         : Optional[torch.FloatTensor] = None,
-            accelerator: Optional[Accelerator] = None,
-            batchsize  : int = 1):
+            cond       : Optional[torch.Tensor] = None,
+            accelerator: Optional[Accelerator] = None):
     accelerator = accelerator or Accelerator()
-    if xt is None:
-        xt = model.rand_input(batchsize).to(accelerator.device) * sigmas[0]
-    else:
-        batchsize = xt.shape[0]
+    xt = model.rand_input(batchsize).to(accelerator.device) * sigmas[0] if xt is None else xt
+    if cond is not None:
+        assert cond.shape[0] == xt.shape[0], 'cond must have same shape as x!'
+        cond = cond.to(xt.device)
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
-        eps, eps_prev = model.predict_eps(xt, sig.to(xt)), eps
+        model.eval()
+        eps_prev, eps = eps, model.predict_eps_cfg(xt, sig.to(xt), cond, cfg_scale)
         eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
         sig_p = (sig_prev/sig**mu)**(1/(1-mu)) # sig_prev == sig**mu sig_p**(1-mu)
         eta = (sig_prev**2 - sig_p**2).sqrt()
-        xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(batchsize).to(xt)
+        xt = xt - (sig - sig_p) * eps_av + eta * model.rand_input(xt.shape[0]).to(xt)
         yield xt
