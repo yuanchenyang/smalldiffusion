@@ -19,9 +19,10 @@ dataset = FashionMNIST('datasets', train=True, download=True,
                        ]))
 loader = DataLoader(dataset, batch_size=1024, shuffle=True)
 schedule = ScheduleDDPM(beta_start=0.0001, beta_end=0.02, N=1000)
+cond_embed = CondEmbedderLabel(32*6, 10, 0.1)
 model = DiT(in_dim=28, channels=1,
             patch_size=2, depth=6, head_dim=32, num_heads=6, mlp_ratio=4.0,
-            cond_embed_class=CondEmbedderLabel, cond_dropout_prob=0.1, cond_num_classes=10)
+            cond_embed=cond_embed)
 
 # Train
 trainer = training_loop(loader, model, schedule, epochs=300, lr=1e-3, conditional=True,
