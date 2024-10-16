@@ -1,3 +1,6 @@
+import sys
+import importlib
+import pytest
 import unittest
 import torch
 import numpy as np
@@ -242,3 +245,28 @@ class TestModels(unittest.TestCase):
                     y = model.predict_eps(x, sigma)
                     self.assertEqual(y.shape, x.shape)
                 model.get_loss(*generate_train_sample(x, self.schedule, conditional=False))
+
+class TestExamples(unittest.TestCase):
+    def setUp(self):
+        sys.path.append("examples")
+        self.test_epochs=1
+
+    @pytest.mark.run_slow
+    def test_cifar_unet(self):
+        from cifar_unet import main
+        main(epochs=self.test_epochs)
+
+    @pytest.mark.run_slow
+    def test_fashion_mnist_dit_cond(self):
+        from fashion_mnist_dit_cond import main
+        main(epochs=self.test_epochs)
+
+    @pytest.mark.run_slow
+    def test_fashion_mnist_dit(self):
+        from fashion_mnist_dit import main
+        main(epochs=self.test_epochs)
+
+    @pytest.mark.run_slow
+    def test_fashion_mnist_unet(self):
+        from fashion_mnist_unet import main
+        main(epochs=self.test_epochs)

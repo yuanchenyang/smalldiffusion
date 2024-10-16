@@ -1,6 +1,6 @@
 [project]
 name = "smalldiffusion"
-version = "0.4.1"
+version = "0.4.2"
 description = "A minimal but functional implementation of diffusion model training and sampling"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,3 +61,10 @@ examples = [
 [build-system]
 requires = ["setuptools>=62"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.pytest.ini_options]
+markers = [
+    "run_slow: mark tests as slow, skip unless --run_slow flag is passed",
+    "serial",
+]

@@ -1,6 +1,7 @@
 import torch
 import csv
 from torch.utils.data import Dataset
+from torchvision import transforms as tf
 
 class Swissroll(Dataset):
     def __init__(self, tmin, tmax, N):
@@ -38,3 +39,11 @@ class MappedDataset(Dataset):
         return len(self.dataset)
     def __getitem__(self, i):
         return self.fn(self.dataset[i])
+
+img_train_transform = tf.Compose([
+    tf.RandomHorizontalFlip(),
+    tf.ToTensor(),
+    tf.Lambda(lambda t: (t * 2) - 1)
+])
+
+img_normalize = lambda x: ((x + 1)/2).clamp(0, 1)
