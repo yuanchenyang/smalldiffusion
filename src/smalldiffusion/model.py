@@ -21,8 +21,8 @@ class ModelMixin:
         return self(x, sigma, cond=cond)
 
     def predict_eps_cfg(self, x, sigma, cond, cfg_scale):
-        if cond is None:
-            return self.predict_eps(x, sigma)
+        if cond is None or cfg_scale == 0:
+            return self.predict_eps(x, sigma, cond=cond)
         assert sigma.shape == tuple(), 'CFG sampling only supports singleton sigma!'
         uncond = torch.full_like(cond, self.cond_embed.null_cond) # (B,)
         eps_cond, eps_uncond = self.predict_eps(                  # (B,), (B,)
@@ -30,22 +30,22 @@ class ModelMixin:
         ).chunk(2)
         return eps_cond + cfg_scale * (eps_cond - eps_uncond)
 
-def sigma_log_scale(batches, sigma, scaling_factor):
+def get_sigma_embeds(batches, sigma, scaling_factor=0.5, log_scale=True):
     if sigma.shape == torch.Size([]):
         sigma = sigma.unsqueeze(0).repeat(batches)
     else:
         assert sigma.shape == (batches,), 'sigma.shape == [] or [batches]!'
-    return torch.log(sigma)*scaling_factor
-
-def get_sigma_embeds(batches, sigma, scaling_factor=0.5):
-    s = sigma_log_scale(batches, sigma, scaling_factor).unsqueeze(1)
+    if log_scale:
+        sigma = torch.log(sigma)
+    s = sigma.unsqueeze(1) * scaling_factor
     return torch.cat([torch.sin(s), torch.cos(s)], dim=1)
 
 # A simple embedding that works just as well as usual sinusoidal embedding
 class SigmaEmbedderSinCos(nn.Module):
-    def __init__(self, hidden_size, scaling_factor=0.5):
+    def __init__(self, hidden_size, scaling_factor=0.5, log_scale=True):
         super().__init__()
         self.scaling_factor = scaling_factor
+        self.log_scale = log_scale
         self.mlp = nn.Sequential(
             nn.Linear(2, hidden_size, bias=True),
             nn.SiLU(),
@@ -53,7 +53,9 @@ class SigmaEmbedderSinCos(nn.Module):
         )
 
     def forward(self, batches, sigma):
-        sig_embed = get_sigma_embeds(batches, sigma, self.scaling_factor) # (B, 2)
+        sig_embed = get_sigma_embeds(batches, sigma,
+                                     self.scaling_factor,
+                                     self.log_scale)                      # (B, 2)
         return self.mlp(sig_embed)                                        # (B, D)
 
 

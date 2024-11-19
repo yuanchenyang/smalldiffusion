@@ -7,7 +7,7 @@ from einops import rearrange
 from itertools import pairwise
 from torch import nn
 from .model import (
-    sigma_log_scale, alpha, Attention, ModelMixin, CondSequential, SigmaEmbedderSinCos,
+    alpha, Attention, ModelMixin, CondSequential, SigmaEmbedderSinCos,
 )
 
 def Normalize(ch):
@@ -85,11 +85,13 @@ class Unet(nn.Module, ModelMixin):
     def __init__(self, in_dim, in_ch, out_ch,
                  ch               = 128,
                  ch_mult          = (1,2,2,2),
+                 embed_ch_mult    = 4,
                  num_res_blocks   = 2,
                  attn_resolutions = (16,),
                  dropout          = 0.1,
                  resamp_with_conv = True,
                  sig_embed        = None,
+                 cond_embed       = None,
                  ):
         super().__init__()
 
@@ -98,17 +100,18 @@ class Unet(nn.Module, ModelMixin):
         self.num_resolutions = len(ch_mult)
         self.num_res_blocks = num_res_blocks
         self.input_dims = (in_ch, in_dim, in_dim)
-        self.temb_ch = self.ch*4
+        self.temb_ch = self.ch * embed_ch_mult
 
-        # sigma embedding
+        # Embeddings
         self.sig_embed = sig_embed or SigmaEmbedderSinCos(self.temb_ch)
         make_block = lambda in_ch, out_ch: ResnetBlock(
             in_ch=in_ch, out_ch=out_ch, temb_channels=self.temb_ch, dropout=dropout
         )
+        self.cond_embed = cond_embed
+
+        # Downsampling
         curr_res = in_dim
         in_ch_dim = [ch * m for m in (1,)+ch_mult]
-
-        # downsampling
         self.conv_in = torch.nn.Conv2d(in_ch, self.ch, kernel_size=3, stride=1, padding=1)
         self.downs = nn.ModuleList()
         for i, (block_in, block_out) in enumerate(pairwise(in_ch_dim)):
@@ -125,14 +128,14 @@ class Unet(nn.Module, ModelMixin):
                 curr_res = curr_res // 2
             self.downs.append(down)
 
-        # middle
+        # Middle
         self.mid = CondSequential(
             make_block(block_in, block_in),
             AttnBlock(block_in),
             make_block(block_in, block_in)
         )
 
-        # upsampling
+        # Upsampling
         self.ups = nn.ModuleList()
         for i_level, (block_out, next_skip_in) in enumerate(pairwise(reversed(in_ch_dim))):
             up = nn.Module()
@@ -151,7 +154,7 @@ class Unet(nn.Module, ModelMixin):
                 curr_res = curr_res * 2
             self.ups.append(up)
 
-        # out
+        # Out
         self.out_layer = nn.Sequential(
             Normalize(block_in),
             nn.SiLU(),
@@ -161,25 +164,29 @@ class Unet(nn.Module, ModelMixin):
     def forward(self, x, sigma, cond=None):
         assert x.shape[2] == x.shape[3] == self.in_dim
 
-        # sigma embedding
-        temb = self.sig_embed(x.shape[0], sigma.squeeze())
+        # Embeddings
+        emb = self.sig_embed(x.shape[0], sigma.squeeze())
+        if self.cond_embed is not None:
+            assert cond is not None and x.shape[0] == cond.shape[0], \
+                'Conditioning must have same batches as x!'
+            emb += self.cond_embed(cond)
 
         # downsampling
         hs = [self.conv_in(x)]
         for down in self.downs:
             for block in down.blocks:
-                h = block(hs[-1], temb)
+                h = block(hs[-1], emb)
                 hs.append(h)
             if hasattr(down, 'downsample'):
                 hs.append(down.downsample(hs[-1]))
 
         # middle
-        h = self.mid(hs[-1], temb)
+        h = self.mid(hs[-1], emb)
 
         # upsampling
         for up in self.ups:
             for block in up.blocks:
-                h = block(torch.cat([h, hs.pop()], dim=1), temb)
+                h = block(torch.cat([h, hs.pop()], dim=1), emb)
             if hasattr(up, 'upsample'):
                 h = up.upsample(h)
 
