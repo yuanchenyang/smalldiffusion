@@ -126,6 +126,7 @@ def samples(model      : nn.Module,
             xt         : Optional[torch.FloatTensor] = None,
             cond       : Optional[torch.Tensor] = None,
             accelerator: Optional[Accelerator] = None):
+    model.eval()
     accelerator = accelerator or Accelerator()
     xt = model.rand_input(batchsize).to(accelerator.device) * sigmas[0] if xt is None else xt
     if cond is not None:
@@ -133,7 +134,6 @@ def samples(model      : nn.Module,
         cond = cond.to(xt.device)
     eps = None
     for i, (sig, sig_prev) in enumerate(pairwise(sigmas)):
-        model.eval()
         eps_prev, eps = eps, model.predict_eps_cfg(xt, sig.to(xt), cond, cfg_scale)
         eps_av = eps * gam + eps_prev * (1-gam)  if i > 0 else eps
         sig_p = (sig_prev/sig**mu)**(1/(1-mu)) # sig_prev == sig**mu sig_p**(1-mu)
