@@ -4,9 +4,10 @@ from torch.utils.data import Dataset
 from torchvision import transforms as tf
 
 class Swissroll(Dataset):
-    def __init__(self, tmin, tmax, N):
+    def __init__(self, tmin, tmax, N, center=(0,0), scale=1.0):
         t = tmin + torch.linspace(0, 1, N) * tmax
-        self.vals = torch.stack([t*torch.cos(t)/tmax, t*torch.sin(t)/tmax]).T
+        center = torch.tensor(center).unsqueeze(0)
+        self.vals = center + scale * torch.stack([t*torch.cos(t)/tmax, t*torch.sin(t)/tmax]).T
 
     def __len__(self):
         return len(self.vals)
