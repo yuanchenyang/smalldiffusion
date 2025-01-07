@@ -47,10 +47,10 @@ dependencies = [
 
 [project.optional-dependencies] # Optional
 dev = ["build", "twine"]
-test = ["pytest", "diffusers==0.27.2"]
+test = ["pytest", "diffusers==0.32.1"]
 examples = [
   "einops",
-  "diffusers==0.27.2",
+  "diffusers",
   "transformers",
   "datasets",
   "jupyter",
