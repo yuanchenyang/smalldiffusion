@@ -47,7 +47,7 @@ class ModelLatentDiffusion(nn.Module, ModelMixin):
         idx = torch.searchsorted(reversed(self.scheduler.alphas_cumprod.to(sigma)), alpha_bar(sigma))
         return self.scheduler.num_train_timesteps - 1 - idx
 
-    def forward(self, x, sigma):
+    def forward(self, x, sigma, cond=None):
         z = alpha_bar(sigma).sqrt() * x
         z2 = torch.cat([z, z])
         eps = self.unet(z2, self.sigma_to_t(sigma), encoder_hidden_states=self.text_condition).sample

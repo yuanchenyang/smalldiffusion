@@ -270,3 +270,7 @@ class TestExamples(unittest.TestCase):
     def test_fashion_mnist_unet(self):
         from fashion_mnist_unet import main
         main(epochs=self.test_epochs)
+
+    @pytest.mark.run_slow
+    def test_stablediffusion(self):
+        import stablediffusion
