@@ -1,6 +1,6 @@
 [project]
 name = "smalldiffusion"
-version = "0.4.3"
+version = "0.4.4"
 description = "A minimal but functional implementation of diffusion model training and sampling"
 readme = "README.md"
 requires-python = ">=3.10"

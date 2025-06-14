@@ -41,7 +41,18 @@ Results on various toy datasets:
   <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/toy_models.png" width=100%>
 </p>
 
-### Diffusion Transformer
+### Conditional training and sampling with classifier-free guidance
+
+We can also train conditional diffusion models and sample from them using
+[classifier-free guidance][cfg-paper]. In
+[examples/cond_tree_model.ipynb](/examples/cond_tree_model.ipynb), samples from
+each class in the 2D tree dataset are represented with a different color.
+
+<p align="center">
+  <img src="/imgs/cfg.png" width=100%>
+</p>
+
+### Diffusion transformer
 We provide [a concise implementation][model-code] of the diffusion transformer introduced in
 [[Peebles and Xie 2022]][dit-paper]. To train a model on the FashionMNIST dataset and
 generate a batch of samples (after first running `accelerate config`):
@@ -65,6 +76,17 @@ The same code can be used to train [U-Net-based models][unet-py].
 ```
 accelerate launch examples/fashion_mnist_unet.py
 ```
+
+We also provide example code to train a U-Net on the CIFAR-10 dataset, with an
+unconditional generation FID of around 3-4:
+
+```
+accelerate launch examples/cifar_unet.py
+```
+
+<p align="center">
+  <img src="/imgs/cifar-samples.png" width=50%>
+</p>
 
 ### StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
@@ -93,7 +115,6 @@ few examples on tweaking the parameter `gam`:
   <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/sd_examples.jpg" width=100%>
 </p>
 
-
 # How to use
 The core of smalldiffusion depends on the interaction between `data`, `model`
 and `schedule` objects. Here we give a specification of these objects. For a
@@ -108,9 +129,9 @@ of data, without labels. To remove labels from existing datasets, extract the
 data with the provided `MappedDataset` wrapper before constructing a
 `DataLoader`.
 
-Two toy datasets, `Swissroll` and
+Three 2D toy datasets, `Swissroll`,
 [`DatasaurusDozen`](https://www.research.autodesk.com/publications/same-stats-different-graphs/),
-are provided.
+and `TreeDataset`are provided.
 
 ### Model
 All model objects should be a subclass of `torch.nn.Module`. Models should have:
@@ -121,12 +142,13 @@ All model objects should be a subclass of `torch.nn.Module`. Models should have:
     *input_dims]`. This method can be inherited from the provided `ModelMixin`
     class when the `input_dims` parameter is set.
 
-Models are called with two arguments:
+Models are called with arguments:
  - `x` is a batch of data of batch-size `B` and shape `[B, *model.input_dims]`.
  - `sigma` is either a singleton or a batch.
    1. If `sigma.shape == []`, the same value will be used for each `x`.
    2. Otherwise `sigma.shape == [B, 1, ..., 1]`, and `x[i]` will be paired with
       `sigma[i]`.
+ - Optionally, `cond` of shape `[B, ...]`, if the model is conditional.
 
 Models should return a predicted noise value with the same shape as `x`.
 
@@ -140,12 +162,14 @@ tensor of increasing `sigma` values. `Schedule` objects have the methods
   - `sample_batch(batchsize)` which generates batch of `sigma` values selected
     uniformly at random, for use in training.
 
-Three schedules are provided:
+The following schedules are provided:
   1. `ScheduleLogLinear` is a simple schedule which works well on small
      datasets and toy models.
   2. `ScheduleDDPM` is commonly used in pixel-space image diffusion models.
   3. `ScheduleLDM` is commonly used in latent diffusion models,
      e.g. StableDiffusion.
+  4. `ScheduleSigmoid` introduced in [GeoDiff][geodiff] for molecular conformal generation
+  5. `ScheduleCosine` introduced in [iDDPM][iddpm]
 
 The following plot shows these three schedules with default parameters.
 <p align="center">
@@ -183,7 +207,7 @@ Yuan]][arxiv-url].
 
 
 [diffusion-py]:https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/diffusion.py
-[unet-py]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/unet.py
+[unet-py]:https://github.com/yuanchenyang/smalldiffusion/blob/main/src/smalldiffusion/model_unet.py
 [diffusers-wrapper]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/diffusers_wrapper.py
 [stablediffusion]:https://github.com/yuanchenyang/smalldiffusion/blob/main/examples/stablediffusion.py
 [build-img]:https://github.com/yuanchenyang/smalldiffusion/workflows/CI/badge.svg
@@ -198,3 +222,6 @@ Yuan]][arxiv-url].
 [arxiv-url]:https://arxiv.org/abs/2306.04848
 [colab-url]:https://colab.research.google.com/drive/1So1lb9fG-AnDeSXNbosCnDbxbzf5xbor?usp=sharing
 [colab-img]:https://colab.research.google.com/assets/colab-badge.svg
+[geodiff]:https://arxiv.org/abs/2203.02923
+[iddpm]:https://arxiv.org/abs/2102.09672
+[cfg-paper]:https://arxiv.org/abs/2207.12598

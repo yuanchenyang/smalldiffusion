@@ -136,12 +136,13 @@ class CondEmbedderLabel(nn.Module):
 ## Simple MLP for toy examples
 
 class TimeInputMLP(nn.Module, ModelMixin):
-    def __init__(self, dim=2, hidden_dims=(16,128,256,128,16)):
+    sigma_dim = 2
+    def __init__(self, dim=2, output_dim=None, hidden_dims=(16,128,256,128,16)):
         super().__init__()
         layers = []
-        for in_dim, out_dim in pairwise((dim + 2,) + hidden_dims):
+        for in_dim, out_dim in pairwise((dim + self.sigma_dim,) + hidden_dims):
             layers.extend([nn.Linear(in_dim, out_dim), nn.GELU()])
-        layers.append(nn.Linear(hidden_dims[-1], dim))
+        layers.append(nn.Linear(hidden_dims[-1], output_dim or dim))
 
         self.net = nn.Sequential(*layers)
         self.input_dims = (dim,)
@@ -153,6 +154,22 @@ class TimeInputMLP(nn.Module, ModelMixin):
         nn_input = torch.cat([x, sigma_embeds], dim=1)               # shape: b x (dim + 2)
         return self.net(nn_input)
 
+class ConditionalMLP(TimeInputMLP):
+    def __init__(self, dim=2, hidden_dims=(16,128,256,128,16),
+                 cond_dim=4, num_classes=10, dropout_prob=0.1):
+        super().__init__(dim=dim+cond_dim, output_dim=dim, hidden_dims=hidden_dims)
+        self.input_dims = (dim,)
+        self.cond_embed = CondEmbedderLabel(cond_dim, num_classes, dropout_prob)
+
+    def forward(self,
+                x,     # shape: b x dim
+                sigma, # shape: b x 1 or scalar
+                cond,  # shape: b
+                ):
+        cond_embeds = self.cond_embed(cond)                          # shape: b x cond_dim
+        sigma_embeds = get_sigma_embeds(x.shape[0], sigma.squeeze()) # shape: b x sigma_dim
+        nn_input = torch.cat([x, sigma_embeds, cond_embeds], dim=1)  # shape: b x (dim + sigma_dim + cond_dim)
+        return self.net(nn_input)
 
 ## Ideal denoiser defined by a dataset
 

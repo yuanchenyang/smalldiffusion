@@ -189,6 +189,42 @@ class TestPipeline(unittest.TestCase):
                                  accelerator=accelerator)
             self.assertEqual(sample.shape, (B//2, 2))
 
+class TestCondPipeline(unittest.TestCase):
+    def setUp(self):
+        self.params = [
+            (3, 3, 2048, 3, 19),
+            (4, 2, 512, 42, 7),
+        ]
+
+    def test_tree(self):
+        for branching_factor, depth, B, epochs, sample_steps in self.params:
+            accelerator = Accelerator()
+            dataset = TreeDataset(branching_factor, depth)
+            loader = DataLoader(dataset, sampler=RandomSampler(dataset, num_samples=B), batch_size=B)
+
+            # Test loader
+            batch, cond = next(iter(loader))
+            self.assertEqual(cond.shape, (B,))
+            self.assertEqual(batch.shape, (B, 2))
+
+            schedule = ScheduleLogLinear(N=200, sigma_min=0.01, sigma_max=10)
+            model = ConditionalMLP(dim=2, hidden_dims=(16, 128, 256, 128, 16),
+                                   cond_dim=4, num_classes=dataset.total_leaves)
+            trainer = training_loop(loader, model, schedule, epochs=epochs, lr=1e-3,
+                                    conditional=True, accelerator=accelerator)
+
+            # Mainly to test that model trains without error
+            losses = [ns.loss.item() for ns in trainer]
+            self.assertEqual(len(losses), epochs)
+
+            # Test sampling
+            N_sample = B//2
+            *_, sample = samples(model, schedule.sample_sigmas(sample_steps), gam=1,
+                                 batchsize=N_sample, cond=cond[:N_sample],
+                                 accelerator=accelerator,
+                                 )
+            self.assertEqual(sample.shape, (N_sample, 2))
+
 class TestIdeal(unittest.TestCase, TensorTest):
     # Test that ideal deoiser batching works
     def test_ideal(self):
