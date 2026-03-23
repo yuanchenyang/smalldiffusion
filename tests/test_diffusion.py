@@ -76,7 +76,7 @@ class TestSchedule(unittest.TestCase, TensorTest):
 
     def test_LDMScheduler_default(self):
         self.compare_scheduler_sigmas(
-            DDIMScheduler.from_pretrained('stabilityai/stable-diffusion-2',
+            DDIMScheduler.from_pretrained('CompVis/stable-diffusion-v1-4',
                                           subfolder='scheduler'),
             ScheduleLDM(),
         )
@@ -286,26 +286,27 @@ class TestExamples(unittest.TestCase):
     def setUp(self):
         sys.path.append("examples")
         self.test_epochs=1
+        self.test_batch_size=64
 
     @pytest.mark.run_slow
     def test_cifar_unet(self):
         from cifar_unet import main
-        main(epochs=self.test_epochs)
+        main(epochs=self.test_epochs, train_batch_size=self.test_batch_size)
 
     @pytest.mark.run_slow
     def test_fashion_mnist_dit_cond(self):
         from fashion_mnist_dit_cond import main
-        main(epochs=self.test_epochs)
+        main(epochs=self.test_epochs, train_batch_size=self.test_batch_size)
 
     @pytest.mark.run_slow
     def test_fashion_mnist_dit(self):
         from fashion_mnist_dit import main
-        main(epochs=self.test_epochs)
+        main(epochs=self.test_epochs, train_batch_size=self.test_batch_size)
 
     @pytest.mark.run_slow
     def test_fashion_mnist_unet(self):
         from fashion_mnist_unet import main
-        main(epochs=self.test_epochs)
+        main(epochs=self.test_epochs, train_batch_size=self.test_batch_size)
 
     @pytest.mark.run_slow
     def test_stablediffusion(self):

@@ -17,6 +17,13 @@ pytorch code. To install from [pypi][pypi-url]:
 pip install smalldiffusion
 ```
 
+For local development with `uv`:
+
+```
+uv sync --extra dev --extra test --extra examples
+uv run pytest
+```
+
 ### Toy models
 To train and sample from the `Swissroll` toy dataset in 10 lines of code (see
 [examples/toyexample.ipynb](/examples/toyexample.ipynb) for a detailed

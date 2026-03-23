@@ -1,13 +1,16 @@
 .PHONY: build test upload install-local
 
 build:
-	python -m build
+	uv run python -m build
 
 test:
-	python -m pytest
+	uv run pytest
+
+test-slow:
+	uv run pytest --run_slow
 
 upload:
-	python -m twine upload --repository pypi dist/*
+	uv run twine upload --repository pypi dist/*
 
 install-local:
-	python -m pip install -e .[dev,test,examples]
+	uv sync --extra dev --extra test --extra examples
