@@ -13,20 +13,9 @@ maintainers = [
 ]
 
 classifiers = [
-  # How mature is this project? Common values are
-  #   3 - Alpha
-  #   4 - Beta
-  #   5 - Production/Stable
   "Development Status :: 4 - Beta",
-
-  # Pick your license as you wish
   "License :: OSI Approved :: MIT License",
-
-  # Specify the Python versions you support here. In particular, ensure
-  # that you indicate you support Python 3. These classifiers are *not*
-  # checked by "pip install". See instead "python_requires" below.
   "Programming Language :: Python :: 3",
-
   "Operating System :: OS Independent",
 ]
 
@@ -45,11 +34,10 @@ dependencies = [
 "Documentation" = "https://github.com/yuanchenyang/smalldiffusion"
 "Source" = "https://github.com/yuanchenyang/smalldiffusion"
 
-[project.optional-dependencies] # Optional
-dev = ["build", "twine"]
+[project.optional-dependencies]
+dev = ["twine"]
 test = ["pytest", "diffusers==0.32.1"]
 examples = [
-  "einops",
   "diffusers",
   "transformers",
   "datasets",
@@ -59,9 +47,8 @@ examples = [
 ]
 
 [build-system]
-requires = ["setuptools>=62"]
-build-backend = "setuptools.build_meta"
-
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 markers = [

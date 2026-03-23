@@ -1,16 +1,16 @@
-.PHONY: build test upload install-local
+.PHONY: build test test-slow publish install-local
 
 build:
-	uv run python -m build
-
+	uv build
+	
 test:
 	uv run pytest
 
 test-slow:
 	uv run pytest --run_slow
 
-upload:
-	uv run twine upload --repository pypi dist/*
+publish:
+	uv publish
 
 install-local:
-	uv sync --extra dev --extra test --extra examples
+	uv sync --all-extras
