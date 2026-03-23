@@ -124,6 +124,10 @@ class CondEmbedderLabel(nn.Module):
     def __init__(self, hidden_size, num_classes, dropout_prob=0.1):
         super().__init__()
         self.embeddings = nn.Embedding(num_classes + 1, hidden_size)
+        self.mlp = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size, bias=True),
+        )
         self.null_cond = num_classes
         self.dropout_prob = dropout_prob
 
@@ -131,7 +135,7 @@ class CondEmbedderLabel(nn.Module):
         if self.training:
             drop_ids = torch.rand(labels.shape[0], device=labels.device) < self.dropout_prob
             labels = torch.where(drop_ids, self.null_cond, labels)
-        return self.embeddings(labels)
+        return self.mlp(self.embeddings(labels))
 
 ## Simple MLP for toy examples
 
