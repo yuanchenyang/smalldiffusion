@@ -9,10 +9,10 @@
 A lightweight diffusion library for training and sampling from diffusion and
 flow models. Features:
  - Designed for ease of experimentation when training new models or developing new samplers
- - Dataset support: 2D toy datasets, pixel and latent-space image datasets
+ - Dataset support: [2D toy datasets](#toy-models), [pixel](#u-net-models) and [latent-space](#dit-on-imagenet-with-flow-matching) image datasets
  - Example training code (with close to SOTA FID): [FashionMNIST](/examples/fashion_mnist_dit.py), [CIFAR10](/examples/cifar_unet.py), [Imagenet](/examples/imagenet_dit.py)
  - Models: [MLP](/src/smalldiffusion/model.py), [U-Net](/src/smalldiffusion/model_unet.py) and [DiT](/src/smalldiffusion/model_dit.py)
- - Supports multiple parameterizations: score-, flow- or data-prediction
+ - Supports multiple parameterizations: [score-, flow- or data-prediction](#model)
  - [Small but extensible core][diffusion-py]: less than 100 lines of code for training and sampling
 
 To install from [pypi][pypi-url]:
@@ -80,7 +80,7 @@ uv run accelerate launch examples/imagenet_dit.py
 ```
 
 After training for 400k steps (~10 hours on 8 GPUs), the model achieves an
-unconditional FID of around 27, compared to 33 for
+**unconditional FID of around 27**, compared to 33 for
 [SiT](https://github.com/willisma/sit) and 43 for [DiT](https://github.com/facebookresearch/dit).
 
 <p align="center">
@@ -96,9 +96,9 @@ uv run accelerate launch examples/fashion_mnist_dit.py
 ```
 
 With the provided default parameters and training on a single GPU for around 2
-hours, the model can achieve a [FID
+hours, the model can achieve a **[FID
 score](https://paperswithcode.com/sota/image-generation-on-fashion-mnist) of
-around 5-6, producing the following generated outputs:
+around 5-6**, producing the following generated outputs:
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/fashion-mnist-samples.png" width=50%>
@@ -112,7 +112,7 @@ uv run accelerate launch examples/fashion_mnist_unet.py
 ```
 
 We also provide example code to train a U-Net on the CIFAR-10 dataset, with an
-unconditional generation FID of around 3-4:
+**unconditional FID of around 3-4**:
 
 ```
 uv run accelerate launch examples/cifar_unet.py
@@ -123,7 +123,7 @@ uv run accelerate launch examples/cifar_unet.py
 </p>
 
 ## StableDiffusion
-smalldiffusion's sampler works with any pretrained diffusion model, and supports
+`smalldiffusion`'s sampler works with any pretrained diffusion model, and supports
 DDPM, DDIM as well as accelerated sampling algorithms. In
 [examples/diffusers_wrapper.py][diffusers-wrapper], we provide a
 simple wrapper for any pretrained [huggingface
@@ -150,7 +150,7 @@ few examples on tweaking the parameter `gam`:
 </p>
 
 # How to use
-The core of smalldiffusion depends on the interaction between `data`, `model`
+The core of `smalldiffusion` depends on the interaction between `data`, `model`
 and `schedule` objects. Here we give a specification of these objects. For a
 detailed introduction to diffusion models and the notation used in the code, see
 the [accompanying tutorial][blog-url].
@@ -162,7 +162,7 @@ needed for tests and examples with `uv sync --all-extras` (or
 `uv sync --extra dev --extra test --extra examples`.
 
 ### Data
-For training diffusion models, smalldiffusion uses PyTorch
+For training diffusion models, `smalldiffusion` uses PyTorch
 [`Dataset`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html)
 and [`DataLoader`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html)
 batches.
@@ -218,20 +218,18 @@ instantiate `Schedule(sigmas)` directly. Methods:
 
 Built-in schedules:
 
-  1. `ScheduleLogLinear` — simple log-spaced sigmas; strong default for toys and
-     small models.
-  2. `ScheduleDDPM` — standard pixel-space diffusion.
-  3. `ScheduleLDM` — latent diffusion (e.g. Stable Diffusion–style).
-  4. `ScheduleSigmoid` — [GeoDiff][geodiff].
-  5. `ScheduleCosine` — [iDDPM][iddpm].
-  6. `ScheduleFlow` — flow matching with uniform time in `[t_min, t_max]`.
-  7. `ScheduleLogNormalFlow` — extends `ScheduleFlow` with logit-normal training
-     times (`sample_batch` overridden).
+  1. `ScheduleLogLinear`: simple log-spaced sigmas; strong default for toy and small models
+  2. `ScheduleDDPM`: standard pixel-space diffusion
+  3. `ScheduleLDM`: latent diffusion (Stable Diffusion–style)
+  4. `ScheduleSigmoid`: [GeoDiff][geodiff]
+  5. `ScheduleCosine`: [iDDPM][iddpm]
+  6. `ScheduleFlow`: flow matching with uniform time in `[t_min, t_max]`
+  7. `ScheduleLogNormalFlow`: extends `ScheduleFlow` with logit-normal times for faster training
 
 The figure below compares several of these with default parameters (diffusion
 sigmas as a function of step index).
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/schedule.png" width=40%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/schedule.png" width=80%>
 </p>
 
 ### Training
