@@ -155,88 +155,115 @@ and `schedule` objects. Here we give a specification of these objects. For a
 detailed introduction to diffusion models and the notation used in the code, see
 the [accompanying tutorial][blog-url].
 
-### Data
-For training diffusion models, smalldiffusion supports pytorch [`Datasets` and
-`DataLoaders`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html).
-The training code expects the iterates from a `DataLoader` object to be batches
-of data, without labels. To remove labels from existing datasets, extract the
-data with the provided `MappedDataset` wrapper before constructing a
-`DataLoader`.
+The library targets **Python 3.10+** (see `requires-python` in
+[`pyproject.toml`](pyproject.toml)). After a local checkout, install everything
+needed for tests and examples with `uv sync --all-extras` (or
+`make install-local`), or install subsets with
+`uv sync --extra dev --extra test --extra examples`.
 
-Three 2D toy datasets, `Swissroll`,
+### Data
+For training diffusion models, smalldiffusion uses PyTorch
+[`Dataset`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html)
+and [`DataLoader`](https://pytorch.org/tutorials/beginner/basics/data_tutorial.html)
+batches.
+By default, `training_loop` expects each batch to be a tensor of data only. To
+drop labels (or otherwise map items), wrap the underlying dataset with
+`MappedDataset(dataset, fn)` so each `__getitem__` returns what the loop should
+see.
+
+For **classifier-free guidance**–style conditional training, pass
+`conditional=True` to `training_loop`. Each batch should then be a pair
+`(x0, cond)` (e.g. images and integer class ids); see
+[`generate_train_sample`](src/smalldiffusion/diffusion.py) for how batches are
+split.
+
+Three 2D toy datasets are provided: `Swissroll`,
 [`DatasaurusDozen`](https://www.research.autodesk.com/publications/same-stats-different-graphs/),
-and `TreeDataset`are provided.
+and `TreeDataset`.
 
 ### Model
-All model objects should be a subclass of `torch.nn.Module`. Models should have:
-  - A parameter `input_dims`, a tuple containing the dimensions of the input to
-    the model (not including batch-size).
-  - A method `rand_input(batchsize)` which takes in a batch-size and returns an
-    i.i.d. standard normal random input with shape `[batchsize,
-    *input_dims]`. This method can be inherited from the provided `ModelMixin`
-    class when the `input_dims` parameter is set.
+All model objects should subclass `torch.nn.Module` and integrate with the
+training and sampling hooks used in [`diffusion.py`](src/smalldiffusion/diffusion.py).
+They should define:
 
-Models are called with arguments:
- - `x` is a batch of data of batch-size `B` and shape `[B, *model.input_dims]`.
- - `sigma` is either a singleton or a batch.
-   1. If `sigma.shape == []`, the same value will be used for each `x`.
-   2. Otherwise `sigma.shape == [B, 1, ..., 1]`, and `x[i]` will be paired with
-      `sigma[i]`.
- - Optionally, `cond` of shape `[B, ...]`, if the model is conditional.
+  - `input_dims`: a tuple of spatial/channel dimensions for one sample (no batch
+    dimension).
+  - `rand_input(batchsize)`: i.i.d. standard normal noise with shape
+    `[batchsize, *input_dims]`. You can inherit this from `ModelMixin` once
+    `input_dims` is set.
 
-Models should return a predicted noise value with the same shape as `x`.
+The model `forward` is called as `forward(x, sigma, cond=None)` where:
 
-<!-- TODO: add note on xt and zt change of variables -->
+ - `x` has shape `[B, *input_dims]`.
+ - `sigma` is either a scalar (`shape == ()`), broadcast to the whole batch, or
+   per-sample with shape `[B, 1, …, 1]` matching `x`.
+ - `cond` is optional conditioning (e.g. class indices for CFG).
+
+By default, [`ModelMixin`](src/smalldiffusion/model.py) trains the network to
+predict additive noise `eps` and implements `get_loss` accordingly. For other
+targets, compose the model class with **`PredX0`**, **`PredV`**, or **`PredFlow`**
+(score / v-prediction / flow-style objectives); those wrappers adjust the loss
+and implement `predict_eps` so the shared `samples()` loop still applies.
+Sampling calls `predict_eps` (and `predict_eps_cfg` when `cfg_scale > 0`).
 
 ### Schedule
-A `Schedule` object determines the rate at which the noise level `sigma`
-increases during the diffusion process. It is constructed by simply passing in a
-tensor of increasing `sigma` values. `Schedule` objects have the methods
-  - `sample_sigmas(steps)` which subsamples the schedule for sampling.
-  - `sample_batch(batchsize)` which generates batch of `sigma` values selected
-    uniformly at random, for use in training.
+A `Schedule` holds a 1D tensor of `sigma` values (noise level or, for flow
+schedules, continuous time). Subclasses build that tensor; you can also
+instantiate `Schedule(sigmas)` directly. Methods:
 
-The following schedules are provided:
-  1. `ScheduleLogLinear` is a simple schedule which works well on small
-     datasets and toy models.
-  2. `ScheduleDDPM` is commonly used in pixel-space image diffusion models.
-  3. `ScheduleLDM` is commonly used in latent diffusion models,
-     e.g. StableDiffusion.
-  4. `ScheduleSigmoid` introduced in [GeoDiff][geodiff] for molecular conformal generation
-  5. `ScheduleCosine` introduced in [iDDPM][iddpm]
+  - `sample_sigmas(steps)`: decreasing sequence for sampling (length `steps + 1`,
+    trailing spacing as in Table 2 of [https://arxiv.org/abs/2305.08891](https://arxiv.org/abs/2305.08891)).
+  - `sample_batch(x0)`: random `sigma` for each row of batch `x0`, with shape
+    broadcastable to `x0` (uses batch size and device from `x0`).
 
-The following plot shows these three schedules with default parameters.
+Built-in schedules:
+
+  1. `ScheduleLogLinear` — simple log-spaced sigmas; strong default for toys and
+     small models.
+  2. `ScheduleDDPM` — standard pixel-space diffusion.
+  3. `ScheduleLDM` — latent diffusion (e.g. Stable Diffusion–style).
+  4. `ScheduleSigmoid` — [GeoDiff][geodiff].
+  5. `ScheduleCosine` — [iDDPM][iddpm].
+  6. `ScheduleFlow` — flow matching with uniform time in `[t_min, t_max]`.
+  7. `ScheduleLogNormalFlow` — extends `ScheduleFlow` with logit-normal training
+     times (`sample_batch` overridden).
+
+The figure below compares several of these with default parameters (diffusion
+sigmas as a function of step index).
 <p align="center">
   <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/schedule.png" width=40%>
 </p>
 
 ### Training
-The `training_loop` generator function provides a simple training loop for
-training a diffusion model , given `loader`, `model` and `schedule` objects
-described above. It yields a namespace with the local variables, for easy
-evaluation during training. For example, to print out the loss every iteration:
+[`training_loop`](src/smalldiffusion/diffusion.py) is a generator that runs
+`epochs` passes over `loader`, using `get_loss` from the model’s class (so
+`PredX0` / `PredV` / `PredFlow` work without changing the loop). It accepts
+optional `accelerator` ([Hugging Face Accelerate](https://github.com/huggingface/accelerate))
+and `conditional` as above. Each step yields a namespace of locals (e.g. `loss`,
+`optimizer`, `x0`, `sigma`).
 
 ```
 for ns in training_loop(loader, model, schedule):
     print(ns.loss.item())
 ```
 
-Multi-GPU training and sampling is also supported via
-[`accelerate`](https://github.com/huggingface/accelerate).
-
+Pass a prepared `Accelerator` instance to use distributed or mixed-precision
+training; the examples use `accelerate launch` for multi-GPU runs.
 
 ### Sampling
-To sample from a diffusion model, the `samples` generator function takes in a
-`model` and a decreasing list of `sigmas` to use during sampling. This list is
-usually created by calling the `sample_sigmas(steps)` method of a `Schedule`
-object. The generator will yield a sequence of `xt`s produced during
-sampling. The sampling loop generalizes most commonly-used samplers:
- - For DDPM [[Ho et. al. ]](https://arxiv.org/abs/2006.11239), use `gam=1, mu=0.5`.
- - For DDIM [[Song et. al. ]](https://arxiv.org/abs/2010.02502), use `gam=1, mu=0`.
- - For accelerated sampling [[Permenter and Yuan]][arxiv-url], use `gam=2`.
+[`samples`](src/smalldiffusion/diffusion.py) is a generator that takes `model`, a
+**decreasing** list/tensor of `sigmas` (typically `schedule.sample_sigmas(steps)`),
+and sampler hyperparameters `gam` and `mu`. Optional arguments include
+`batchsize`, initial latent `xt`, conditioning `cond`, `cfg_scale` for
+classifier-free guidance, and `accelerator`. It yields successive `xt` states.
 
-For more details on how these sampling algorithms can be simplified, generalized
-and implemented in only 5 lines of code, see Appendix A of [[Permenter and
+Common choices:
+
+ - DDPM [[Ho et al.]](https://arxiv.org/abs/2006.11239): `gam=1`, `mu=0.5`.
+ - DDIM [[Song et al.]](https://arxiv.org/abs/2010.02502): `gam=1`, `mu=0`.
+ - Accelerated sampling [[Permenter and Yuan]][arxiv-url]: `gam=2` (with `mu=0`).
+
+For more detail on unifying these samplers, see Appendix A of [[Permenter and
 Yuan]][arxiv-url].
 
 
