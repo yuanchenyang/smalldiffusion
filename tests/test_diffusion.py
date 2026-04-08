@@ -1,5 +1,4 @@
 import sys
-import importlib
 import pytest
 import unittest
 import torch
@@ -307,6 +306,11 @@ class TestExamples(unittest.TestCase):
     def test_fashion_mnist_unet(self):
         from fashion_mnist_unet import main
         main(epochs=self.test_epochs, train_batch_size=self.test_batch_size)
+
+    @pytest.mark.run_slow
+    def test_imagenet(self):
+        from imagenet_dit import main
+        main(steps=10, train_batch_size=64)
 
     @pytest.mark.run_slow
     def test_stablediffusion(self):

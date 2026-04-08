@@ -6,12 +6,16 @@
 [![Pypi project][pypi-img]][pypi-url]
 [![Build Status][build-img]][build-url]
 
-A lightweight diffusion library for training and sampling from diffusion
-models. It is built for easy experimentation when training new models and
-developing new samplers, supporting minimal toy models to state-of-the-art
-pretrained models. The [core of this library][diffusion-py] for diffusion
-training and sampling is implemented in less than 100 lines of very readable
-pytorch code. To install from [pypi][pypi-url]:
+A lightweight diffusion library for training and sampling from diffusion and
+flow models. Features:
+ - Designed for ease of experimentation when training new models or developing new samplers
+ - Dataset support: 2D toy datasets, pixel and latent-space image datasets
+ - Example training code (with close to SOTA FID): [FashionMNIST](/examples/fashion_mnist_dit.py), [CIFAR10](/examples/cifar_unet.py), [Imagenet](/examples/imagenet_dit.py)
+ - Models: [MLP](/src/smalldiffusion/model.py), [U-Net](/src/smalldiffusion/model_unet.py) and [DiT](/src/smalldiffusion/model_dit.py)
+ - Supports multiple parameterizations: score-, flow- or data-prediction
+ - [Small but extensible core][diffusion-py]: less than 100 lines of code for training and sampling
+
+To install from [pypi][pypi-url]:
 
 ```
 pip install smalldiffusion
@@ -24,7 +28,7 @@ uv sync --extra dev --extra test --extra examples
 uv run pytest
 ```
 
-### Toy models
+## Toy models
 To train and sample from the `Swissroll` toy dataset in 10 lines of code (see
 [examples/toyexample.ipynb](/examples/toyexample.ipynb) for a detailed
 guide):
@@ -56,16 +60,39 @@ We can also train conditional diffusion models and sample from them using
 each class in the 2D tree dataset are represented with a different color.
 
 <p align="center">
-  <img src="/imgs/cfg.png" width=100%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/cfg.png" width=100%>
 </p>
 
-### Diffusion transformer
+## Diffusion transformer
 We provide [a concise implementation][model-code] of the diffusion transformer introduced in
-[[Peebles and Xie 2022]][dit-paper]. To train a model on the FashionMNIST dataset and
-generate a batch of samples (after first running `accelerate config`):
+[[Peebles and Xie 2022]][dit-paper].
+
+### DiT on ImageNet with flow matching
+We provide [an example script](/examples/imagenet_dit.py) for training a DiT-B/2
+model on ImageNet 256×256 using the flow matching formulation in the latent
+space of [Stable Diffusion's
+VAE](https://huggingface.co/stabilityai/sd-vae-ft-mse). The script trains on
+precomputed VAE latents and supports multi-GPU training via `accelerate`:
 
 ```
-accelerate launch examples/fashion_mnist_dit.py
+uv run accelerate config
+uv run accelerate launch examples/imagenet_dit.py
+```
+
+After training for 400k steps (~10 hours on 8 GPUs), the model achieves an
+unconditional FID of around 27, compared to 33 for
+[SiT](https://github.com/willisma/sit) and 43 for [DiT](https://github.com/facebookresearch/dit).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/imagenet_samples.png" width=100%>
+</p>
+
+### FashionMNIST dataset
+To train a diffusion transformer model on the FashionMNIST dataset and
+generate a batch of samples (after first running `uv run accelerate config`):
+
+```
+uv run accelerate launch examples/fashion_mnist_dit.py
 ```
 
 With the provided default parameters and training on a single GPU for around 2
@@ -77,25 +104,25 @@ around 5-6, producing the following generated outputs:
   <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/fashion-mnist-samples.png" width=50%>
 </p>
 
-### U-Net models
+## U-Net models
 The same code can be used to train [U-Net-based models][unet-py].
 
 ```
-accelerate launch examples/fashion_mnist_unet.py
+uv run accelerate launch examples/fashion_mnist_unet.py
 ```
 
 We also provide example code to train a U-Net on the CIFAR-10 dataset, with an
 unconditional generation FID of around 3-4:
 
 ```
-accelerate launch examples/cifar_unet.py
+uv run accelerate launch examples/cifar_unet.py
 ```
 
 <p align="center">
-  <img src="/imgs/cifar-samples.png" width=50%>
+  <img src="https://raw.githubusercontent.com/yuanchenyang/smalldiffusion/main/imgs/cifar-samples.png" width=50%>
 </p>
 
-### StableDiffusion
+## StableDiffusion
 smalldiffusion's sampler works with any pretrained diffusion model, and supports
 DDPM, DDIM as well as accelerated sampling algorithms. In
 [examples/diffusers_wrapper.py][diffusers-wrapper], we provide a

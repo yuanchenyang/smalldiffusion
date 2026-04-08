@@ -58,6 +58,29 @@ class SigmaEmbedderSinCos(nn.Module):
                                      self.log_scale)                      # (B, 2)
         return self.mlp(sig_embed)                                        # (B, D)
 
+# Timestep embedding designed for uniformly-spaced timesteps, for flow matching
+def timestep_embedding(t, dim, max_period=10000):
+    half = dim // 2
+    freqs = torch.exp(-math.log(max_period) * torch.arange(half, device=t.device, dtype=torch.float32) / half)
+    args = t.unsqueeze(1).float() * freqs.unsqueeze(0)
+    return torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+
+class TimestepEmbedder(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.freq_dim = 256
+        self.mlp = nn.Sequential(
+            nn.Linear(self.freq_dim, 1024, bias=True),
+            nn.GELU(approximate='tanh'),
+            nn.Linear(1024, hidden_size, bias=True),
+            nn.GELU(approximate='tanh'),
+            nn.Linear(hidden_size, hidden_size, bias=True),
+        )
+
+    def forward(self, batches, sigma):
+        if sigma.shape == torch.Size([]):
+            sigma = sigma.unsqueeze(0).repeat(batches)
+        return self.mlp(timestep_embedding(sigma * 1000, self.freq_dim))
 
 ## Modifiers for models, such as including scaling or changing model predictions
 
@@ -91,6 +114,20 @@ def PredV(cls: ModelMixin):
         return alpha(sigma).sqrt() * (v_hat + (1-alpha(sigma)).sqrt() * x)
     return type(cls.__name__ + 'PredV', (cls,),
                 dict(get_loss=get_loss, predict_eps=predict_eps))
+
+# Train model to predict eps - x0 as in flow matching
+def PredFlow(cls):
+    def get_loss(self, x0, sigma, eps, cond=None, loss=nn.MSELoss):
+        x_t = (1 - sigma) * x0 + sigma * eps
+        return loss()(-x0 + eps, self(x_t, sigma, cond=cond))
+
+    def predict_eps(self, x, sigma, cond=None):
+        dtype = next(self.parameters()).dtype
+        return self(x.to(dtype), sigma.to(dtype), cond=cond).to(x.dtype)
+
+    return type(cls.__name__ + 'PredFlow', (cls,),
+                dict(get_loss=get_loss, predict_eps=predict_eps))
+
 
 ## Common functions for other models
 

@@ -70,6 +70,23 @@ class ScheduleCosine(Schedule):
                  for i in range(N)]
         super().__init__(sigmas_from_betas(torch.tensor(betas, dtype=torch.float32)))
 
+# Flow matching schedule with uniform time sampling
+class ScheduleFlow(Schedule):
+    def __init__(self, N=1000, t_min=0.001, t_max=1.0):
+        self.t_min, self.t_max = t_min, t_max
+        super().__init__(torch.linspace(t_min, t_max, N))
+
+    def sample_sigmas(self, steps):
+        t = torch.linspace(self.t_max, self.t_min, steps, dtype=torch.float64)
+        return torch.cat([t, torch.tensor([0.0], dtype=torch.float64)])
+
+# Flow schedule with logit-normal time sampling for training
+class ScheduleLogNormalFlow(ScheduleFlow):
+    """Flow schedule with logit-normal time sampling for training."""
+    def sample_batch(self, x0):
+        t = torch.sigmoid(torch.randn(x0.shape[0], device=x0.device, dtype=x0.dtype))
+        return t.clamp(self.t_min, self.t_max)
+
 # Given a batch of data
 #   x0   : Either a data tensor or a tuple of (data, labels)
 # Returns
@@ -101,13 +118,14 @@ def training_loop(loader      : DataLoader,
                   conditional : bool = False):
     accelerator = accelerator or Accelerator()
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    get_loss = type(model).get_loss
     model, optimizer, loader = accelerator.prepare(model, optimizer, loader)
     for _ in (pbar := tqdm(range(epochs))):
         for x0 in loader:
             model.train()
             optimizer.zero_grad()
             x0, sigma, eps, cond = generate_train_sample(x0, schedule, conditional)
-            loss = model.get_loss(x0, sigma, eps, cond=cond)
+            loss = get_loss(model, x0, sigma, eps, cond=cond)
             yield SimpleNamespace(**locals()) # For extracting training statistics
             accelerator.backward(loss)
             optimizer.step()
